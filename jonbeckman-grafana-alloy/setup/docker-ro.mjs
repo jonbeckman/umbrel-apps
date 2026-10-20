@@ -21,7 +21,11 @@ export function startDockerReadProxy({ listenPath, upstreamPath }) {
       client.off('data', onData);
       const head = buf.subarray(0, idx).toString('latin1');
       const method = head.split(' ')[0];
-      if (method !== 'GET' && method !== 'HEAD') {
+      // GET can still open a stream into a container (attach/ws upgrades
+      // to a websocket). Refuse upgrades and attach/exec paths outright.
+      const target = head.split(' ')[1] || '';
+      const upgrade = /^(upgrade|connection:[^\r\n]*upgrade)/im.test(head.split('\r\n').slice(1).join('\r\n'));
+      if (method !== 'GET' && method !== 'HEAD' || upgrade || /\/(attach|exec)(\/|\?|$)/.test(target)) {
         client.end('HTTP/1.1 403 Forbidden\r\nContent-Length: 19\r\nConnection: close\r\n\r\nmethod not allowed\n');
         return;
       }

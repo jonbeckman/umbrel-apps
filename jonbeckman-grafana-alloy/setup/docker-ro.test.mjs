@@ -43,6 +43,18 @@ test('docker proxy forwards GET and refuses POST', async () => {
     });
     assert.equal(denied.status, 403);
     assert.match(denied.body, /not allowed/);
+    for (const [p, headers] of [['/containers/abc/attach/ws?stream=1', { Connection: 'Upgrade', Upgrade: 'websocket' }], ['/containers/abc/attach', {}], ['/v1.41/containers/json', { Connection: 'Upgrade', Upgrade: 'tcp' }]]) {
+      const res = await new Promise((resolve, reject) => {
+        const req = http.request({ socketPath: listenPath, path: p, method: 'GET', headers, agent: false }, (r) => {
+          r.resume();
+          r.on('end', () => resolve(r.statusCode));
+        });
+        req.on('upgrade', () => resolve(101));
+        req.on('error', reject);
+        req.end();
+      });
+      assert.equal(res, 403, p);
+    }
   } finally {
     proxy.close();
     upstream.close();
