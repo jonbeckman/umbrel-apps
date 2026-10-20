@@ -1,0 +1,7 @@
+#!/bin/sh
+# Create the data directory before compose starts. The setup container
+# writes config.alloy; this hook does not copy secrets and does not
+# overwrite a config that is already there.
+set -eu
+mkdir -p "${APP_DATA_DIR}/data/alloy"
+chmod 0755 "${APP_DATA_DIR}/data/alloy" || true

@@ -1,0 +1,80 @@
+services:
+  # Setup page behind the Umbrel login. 3500 is not published on the host.
+  # PROXY_AUTH_ADD keeps the tile behind the Umbrel session. The manager
+  # also refuses the API from sibling containers. /metrics is the exception
+  # so Grafana Alloy, on this docker network, can scrape it.
+  app_proxy:
+    environment:
+      APP_HOST: jonbeckman-github-runner_manager_1
+      APP_PORT: 3500
+      PROXY_AUTH_ADD: "true"
+
+  # Private Docker daemon. Not on umbrel_main_network. Job containers and
+  # images they pull live in data/dind (--data-root), so they survive the
+  # next job. cpu_shares lets other Umbrel apps win when the CPU is busy.
+  dind:
+    image: docker:29.9.1-dind@sha256:3e5756e2b6dad6a5f1f5deacf0a19f9eaa2581b76ae092b2d4a118162e1d4d4e
+    restart: on-failure
+    privileged: true
+    stop_grace_period: 1m
+    cpu_shares: 256
+    networks:
+      - ghr_private
+    command:
+      - dockerd
+      - --host=unix:///sock/docker.sock
+      - --host=unix:///var/run/docker.sock
+      - --data-root=/data/data
+      - --exec-root=/data/exec
+      - --pidfile=/data/docker.pid
+      - --mtu=1450
+      - --default-network-opt=bridge=com.docker.network.driver.mtu=1450
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+      - ${APP_DATA_DIR}/data/sock:/sock
+      - ${APP_DATA_DIR}/data/work:/ghr
+      - ${APP_DATA_DIR}/data/cache:/ghr-cache
+      - ${APP_DATA_DIR}/data/externals:/home/runner/externals
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///sock/docker.sock", "info"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  manager:
+    # pinned-by-ci: the image workflow on master replaces this tag with a digest.
+    image: ghcr.io/jonbeckman/github-runner-manager:0.1.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      dind:
+        condition: service_healthy
+    environment:
+      PORT: "3500"
+      DOCKER_SOCK: /sock/docker.sock
+      DIND_SOCK_PATH: /sock/docker.sock
+      STATE_DIR: /state
+      WORK_DIR: /ghr
+      CACHE_DIR: /ghr-cache
+      EXTERNALS_DIR: /externals
+      APP_PROXY_HOST: jonbeckman-github-runner_app_proxy_1
+      # pinned-by-ci
+      RUNNER_IMAGE: ghcr.io/jonbeckman/github-runner-image:0.1.0
+    volumes:
+      - ${APP_DATA_DIR}/data/sock:/sock
+      - ${APP_DATA_DIR}/data/manager:/state
+      - ${APP_DATA_DIR}/data/work:/ghr
+      - ${APP_DATA_DIR}/data/cache:/ghr-cache
+      - ${APP_DATA_DIR}/data/externals:/externals
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3500/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  ghr_private:
+    driver: bridge

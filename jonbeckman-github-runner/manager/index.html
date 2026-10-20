@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub Runner</title>
+  <style>
+    :root { color-scheme: light dark; font-family: sans-serif; }
+    body { margin: 0 auto; max-width: 52rem; padding: 1.25rem; line-height: 1.45; }
+    h1 { font-size: 1.4rem; }
+    section { border: 1px solid #8884; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0; }
+    label { display: block; margin: 0.4rem 0; }
+    input, button { font: inherit; }
+    input[type="text"], input[type="password"], input[type="number"] { width: 100%; box-sizing: border-box; padding: 0.35rem; }
+    button { margin-right: 0.4rem; margin-top: 0.4rem; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { text-align: left; padding: 0.2rem 0.4rem; vertical-align: top; }
+    .err { color: #b00020; }
+    code { font-family: ui-monospace, monospace; }
+    .muted { opacity: 0.75; }
+  </style>
+</head>
+<body>
+  <h1>GitHub Runner</h1>
+  <p class="muted">Private repositories only. One fresh container per job. Tokens stay in this app. <code>/metrics</code> is for other containers on this Umbrel, not a public port.</p>
+  <p id="banner"></p>
+
+  <section>
+    <h2>Resource owners</h2>
+    <p>Fine-grained tokens are per resource owner. Add one for <code>SolZeroAI</code> and one for <code>jonbeckman</code>. Classic <code>ghp_</code> tokens are refused.</p>
+    <div id="owners"></div>
+    <label>Owner <input id="owner" type="text" placeholder="SolZeroAI" autocomplete="off"></label>
+    <label>Fine-grained token <input id="token" type="password" autocomplete="off"></label>
+    <button id="save-owner" type="button">Save token</button>
+  </section>
+
+  <section>
+    <h2>Repositories</h2>
+    <p>First pilot: <code>SolZeroAI/janus</code>. The token for that owner needs Administration: Read and write, and Actions: Read-only, on that private repository only.</p>
+    <div id="repos"></div>
+    <label>Repository <input id="repo" type="text" placeholder="SolZeroAI/janus" autocomplete="off"></label>
+    <button id="add-repo" type="button">Add repository</button>
+  </section>
+
+  <section>
+    <h2>Limits</h2>
+    <label>Parallel jobs (1–4) <input id="max" type="number" min="1" max="4" value="2"></label>
+    <label><input id="paused" type="checkbox"> Paused</label>
+    <label><input id="docker" type="checkbox"> Docker for jobs (<code>umbrel-docker</code>). This is root on the Umbrel.</label>
+    <label>Type <code>docker</code> to turn that on <input id="docker-confirm" type="text" autocomplete="off"></label>
+    <button id="save-settings" type="button">Save limits</button>
+    <button id="remove-runners" type="button">Remove runners from GitHub</button>
+    <pre id="report"></pre>
+  </section>
+
+  <section>
+    <h2>Live</h2>
+    <div id="live"></div>
+  </section>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    async function api(path, body) {
+      const res = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: body ? { 'Content-Type': 'application/json', 'X-GHR-Request': '1' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+    async function del(path) {
+      const res = await fetch(path, { method: 'DELETE', headers: { 'X-GHR-Request': '1' } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+    }
+    function showError(e) { $('banner').innerHTML = '<span class="err"></span>'; $('banner').firstChild.textContent = e.message; }
+    async function refresh() {
+      const s = await api('/api/status');
+      $('banner').textContent = s.installId ? `Install ${s.installId}. Labels: ${s.labels.join(', ')}.` : '';
+      if (s.tickError) $('banner').textContent += ' ' + s.tickError;
+      $('owners').innerHTML = s.owners.map((o) => `<div><code></code> ${o.login ? 'user ' : ''}<span></span> ${o.hint} ${o.expires || ''} <span class="err"></span> <button type="button" data-owner="${o.owner}">Remove</button></div>`).join('') || '<p class="muted">No tokens yet.</p>';
+      [...$('owners').querySelectorAll('div')].forEach((row, i) => {
+        const o = s.owners[i];
+        row.querySelector('code').textContent = o.owner;
+        row.querySelector('span').textContent = o.login || '';
+        row.querySelector('.err').textContent = o.error || '';
+      });
+      $('repos').innerHTML = '<table><tr><th>Repo</th><th>Queued</th><th>Forks skipped</th><th></th></tr>' + s.repos.map((r) => `<tr><td><code></code></td><td>${r.queued || 0}${r.publicAt ? ' public' : ''}</td><td>${r.forks || 0}</td><td>${r.error || ''}</td></tr>`).join('') + '</table>';
+      [...$('repos').querySelectorAll('code')].forEach((el, i) => { el.textContent = s.repos[i].name; });
+      $('max').value = s.settings.maxRunners;
+      $('paused').checked = s.settings.paused;
+      $('docker').checked = s.settings.dockerForJobs;
+      const runners = s.runners.map((r) => `${r.name} ${r.repo} ${r.job || '(waiting)'} mem=${r.mem ?? '—'}`).join('\n') || 'No runners.';
+      const history = s.history.slice(0, 8).map((h) => `${h.finishedAt} ${h.repo} ${h.result} ${h.job || ''}`).join('\n');
+      $('live').textContent = runners + (history ? '\n\nRecent\n' + history : '');
+    }
+    $('owners').addEventListener('click', async (ev) => {
+      const owner = ev.target?.dataset?.owner;
+      if (!owner) return;
+      try { await del('/api/owners/' + encodeURIComponent(owner)); await refresh(); } catch (e) { showError(e); }
+    });
+    $('save-owner').onclick = async () => {
+      try { await api('/api/owners', { owner: $('owner').value, token: $('token').value }); $('token').value = ''; await refresh(); }
+      catch (e) { showError(e); }
+    };
+    $('add-repo').onclick = async () => {
+      try { await api('/api/repos', { repo: $('repo').value }); await refresh(); } catch (e) { showError(e); }
+    };
+    $('save-settings').onclick = async () => {
+      try {
+        await api('/api/settings', {
+          maxRunners: Number($('max').value),
+          paused: $('paused').checked,
+          dockerForJobs: $('docker').checked,
+          dockerConfirm: $('docker-confirm').value,
+        });
+        await refresh();
+      } catch (e) { showError(e); }
+    };
+    $('remove-runners').onclick = async () => {
+      try {
+        const out = await api('/api/runners/remove', {});
+        $('report').textContent = (out.report || []).join('\n');
+        await refresh();
+      } catch (e) { showError(e); }
+    };
+    refresh().catch(showError);
+    setInterval(() => refresh().catch(() => {}), 5000);
+  </script>
+</body>
+</html>

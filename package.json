@@ -1,0 +1,9 @@
+{
+  "name": "jonbeckman-umbrel-apps",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs",
+    "lint": "node scripts/lint-store.mjs"
+  }
+}

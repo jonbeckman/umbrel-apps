@@ -1,0 +1,54 @@
+manifestVersion: 1.1
+id: jonbeckman-grafana-alloy
+name: Grafana Alloy
+icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-grafana-alloy/icon.svg
+category: networking
+version: "0.1.0"
+tagline: Ship this Umbrel's metrics and logs to Grafana Cloud
+description: >-
+  Grafana Alloy on this Umbrel, outbound only, using the official
+  grafana/alloy image. It collects host metrics, Docker container metrics,
+  and every container's logs, scrapes the GitHub Runner manager's
+  /metrics, and forwards OTLP traces, metrics, and logs that other apps
+  send it. The destination is the Grafana Cloud stack
+  https://rubybandicoot3279.grafana.net (US East).
+
+
+  Open the app and paste the stack's remote_write URL, Loki URL, OTLP
+  gateway URL, the instance IDs, and one access-policy token. Those values
+  are written to data/alloy/config.alloy as mode 0440 and are not in git.
+  Restart the app after saving so Alloy reads the new file. Until then
+  Alloy stays up and does not send anything.
+
+
+  Container logs are labeled with the Umbrel app id (the compose project
+  name). Container environment variables are not copied onto metrics.
+  Alloy's own debug port listens on 127.0.0.1 inside its container.
+  OTLP is not published on the LAN: other Umbrel apps reach
+  jonbeckman-grafana-alloy_alloy_1 on 4317 (gRPC) and 4318 (HTTP). The
+  memory limit is 192 MB.
+
+
+  Alloy does not get the host Docker socket. A small proxy in this app
+  forwards only GET and HEAD. Host /proc, /sys, and / are mounted
+  read-only for the exporters.
+releaseNotes: >-
+  Initial release. Host metrics, container metrics and logs, runner
+  /metrics, and an internal OTLP receiver, shipped to Grafana Cloud
+  after credentials are saved on the box.
+developer: Grafana Labs
+website: https://grafana.com/oss/alloy/
+dependencies: []
+repo: https://github.com/jonbeckman/umbrel-apps
+support: https://github.com/jonbeckman/umbrel-apps/issues
+port: 3501
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: jonbeckman
+submission: https://github.com/jonbeckman/umbrel-apps
+backupIgnore:
+  - data/alloy/config.alloy

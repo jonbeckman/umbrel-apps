@@ -1,0 +1,107 @@
+manifestVersion: 1.1
+id: jonbeckman-github-runner
+name: GitHub Runner
+icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-github-runner/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Self-hosted Actions runners for Jonathan's private repositories
+description: >-
+  Runs GitHub Actions jobs for the private repositories you list, on this
+  Umbrel. A job asks for `runs-on: [self-hosted, umbrel]`, or
+  `[self-hosted, umbrel-docker]` when it needs a Docker daemon. Each job
+  gets a new container inside a Docker daemon that belongs only to this
+  app, then the container and its work directory are deleted. GitHub does
+  not bill self-hosted minutes.
+
+
+  The runner image is GitHub's official actions-runner image plus zstd,
+  build-essential, the GitHub CLI, the Docker Compose plugin, Node
+  24.15.0, and Nub 0.9.6. Workflows can keep using
+  `nubjs/setup-nub@v0.6.0` with `nub-version: 0.9.6`.
+
+
+  What to change in those workflows so they do not download the same
+  things on every job:
+
+
+  - Set `cache: false` and `package-manager-cache: false` on
+  `nubjs/setup-nub`. Nub already reads a store on this Umbrel's disk.
+  The action's cache input uploads that store to GitHub and downloads it
+  again.
+
+
+  - Leave `cache:` off `actions/setup-node` for the same reason. If the
+  job only needs Node 24.15.0, set `provision-node: false` on setup-nub
+  so it does not fetch another Node. A different Node version is still
+  downloaded once into this repository's tool cache and reused.
+
+
+  - Do not set `PLAYWRIGHT_BROWSERS_PATH=0`. The app sets
+  `PLAYWRIGHT_BROWSERS_PATH` to a per-repository directory, so the
+  tester-army / Playwright browser download stays on disk.
+
+
+  - Do not point `E2E_CACHE_DIR` at the checkout. The app sets it to a
+  per-repository directory (`e2e/`) so replay files survive the clean
+  work directory. An absolute `E2E_CACHE_DIR` replaces `cache.dir`.
+
+
+  Caches are one directory per repository under the app data folder
+  (`data/cache/<owner>__<repo>/`). Nub's content store is
+  `nub-store/v1` (`npm_config_store_dir` points at `nub-store`; Nub adds
+  `v1`). Nub's metadata cache is `nub-cache` (`NUB_CACHE_DIR`). Nothing
+  in that tree is shared with another repository. The app deletes the
+  tree once a week, and only while no job is running.
+
+
+  Images a job pulls with Docker for jobs stay in `data/dind`. That is
+  the private daemon's data-root, on the Umbrel disk, so the next job
+  does not pull them again. The weekly cache wipe does not remove those
+  images.
+
+
+  Fine-grained tokens are per resource owner. Save one for the SolZeroAI
+  organization and one for the jonbeckman user. The first repository to
+  add is SolZeroAI/janus. Each token needs Administration: Read and write
+  and Actions: Read-only on only the private repositories it should
+  serve. Classic tokens are refused. Public repositories are refused.
+  Jobs whose head repository is a fork are left in GitHub's queue.
+
+
+  Parallel jobs default to 2, maximum 4. Each job's memory is half of
+  this machine divided by that cap, at least 1 GB and at most 8 GB, with
+  no swap. On this 8 GB NUC at the default cap that is 2 GB per job.
+  Jobs share the CPU by weight. Docker for jobs is off until you type
+  `docker` on the setup page. The private daemon is privileged, so a job
+  with the Docker socket can reach the host. Leave it off unless every
+  workflow is yours.
+
+
+  The setup page is behind the Umbrel login. The token file is
+  `data/manager/state.json`, mode 0600. Runners only receive a one-job
+  JIT config. Before uninstalling, use "Remove runners from GitHub" and
+  revoke the tokens.
+releaseNotes: >-
+  Initial release. Per-owner fine-grained tokens, a per-repository Nub
+  store, Playwright browser cache, and e2e replay cache, Node 24.15.0
+  and Nub 0.9.6 on the runner image, and a Prometheus /metrics endpoint
+  on the Umbrel docker network.
+developer: Jonathan Beckman
+website: https://github.com/jonbeckman/umbrel-apps
+dependencies: []
+repo: https://github.com/jonbeckman/umbrel-apps
+support: https://github.com/jonbeckman/umbrel-apps/issues
+port: 3500
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: jonbeckman
+submission: https://github.com/jonbeckman/umbrel-apps
+backupIgnore:
+  - data/dind
+  - data/cache
+  - data/work
+  - data/externals

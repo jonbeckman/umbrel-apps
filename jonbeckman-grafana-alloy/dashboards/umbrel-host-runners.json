@@ -1,0 +1,98 @@
+{
+  "title": "Umbrel host, containers, and GitHub runner",
+  "uid": "jonbeckman-umbrel",
+  "tags": ["umbrel", "jonbeckman"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Prometheus"
+      },
+      {
+        "name": "DS_LOKI",
+        "type": "datasource",
+        "query": "loki",
+        "label": "Loki"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Host CPU busy",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))", "legendFormat": "busy", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Host memory available",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "node_memory_MemAvailable_bytes", "legendFormat": "available", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Container CPU",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum by (name, container_label_com_docker_compose_project) (rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]))", "legendFormat": "{{container_label_com_docker_compose_project}} {{name}}", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Container memory",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "sum by (name, container_label_com_docker_compose_project) (container_memory_working_set_bytes{name!=\"\"})", "legendFormat": "{{container_label_com_docker_compose_project}} {{name}}", "refId": "A" }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Runner jobs running",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum by (repo, pool) (ghr_jobs_running)", "legendFormat": "{{repo}} {{pool}}", "refId": "A" }]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Runner jobs finished",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [{ "expr": "sum by (repo, conclusion) (increase(ghr_jobs_finished_total[1h]))", "legendFormat": "{{repo}} {{conclusion}}", "refId": "A" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Runner queue wait and duration p95",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, repo) (rate(ghr_job_queue_wait_seconds_bucket[1h])))", "legendFormat": "wait {{repo}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, repo) (rate(ghr_job_duration_seconds_bucket[1h])))", "legendFormat": "duration {{repo}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Container logs by Umbrel app",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "targets": [{ "expr": "{job=\"umbrel\"}", "refId": "A" }]
+    }
+  ]
+}
