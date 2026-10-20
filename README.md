@@ -20,8 +20,8 @@ Open that store from the same menu and install an app the same way as an officia
 
 | App | ID | Version | Port | What it does |
 | --- | --- | --- | --- | --- |
-| GitHub Runner | `jonbeckman-github-runner` | 0.1.0 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
-| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.0 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
+| GitHub Runner | `jonbeckman-github-runner` | 0.1.1 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
+| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.1 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 
 Neither app publishes a host port. The setup pages are behind the Umbrel login (`PROXY_AUTH_ADD`).
 
@@ -162,7 +162,7 @@ Read before this tree was written. Their repository has no `LICENSE` (the licens
 
 What that code does that matters here:
 
-- The setup page loads Google Fonts (`fonts.googleapis.com` and `fonts.gstatic.com`). Opening it contacts Google. This store's pages have no third-party assets and send a Content-Security-Policy.
+- The setup page loads Google Fonts (`fonts.googleapis.com` and `fonts.gstatic.com`). Opening it contacts Google. This store's pages have no third-party assets and send a Content-Security-Policy. Scripts are files on the same origin (`script-src 'self'`). The policy does not allow inline scripts.
 - Other outbound calls are GitHub's API, plus a redirect to fetch a job's log blob. The token is not sent to that blob host. This manager does not download job logs.
 - Their client identified itself as `zot24-github-runner`. This one uses `jonbeckman-github-runner`.
 - The private Docker daemon is privileged. That is required for `docker:dind` and it is the sharp edge of the app. Docker-for-jobs is off until the setup page is given the word `docker`. A job that holds that socket can control that daemon.

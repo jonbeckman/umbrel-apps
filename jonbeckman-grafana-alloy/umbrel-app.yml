@@ -3,7 +3,7 @@ id: jonbeckman-grafana-alloy
 name: Grafana Alloy
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-grafana-alloy/icon.svg
 category: networking
-version: "0.1.0"
+version: "0.1.1"
 tagline: Ship this Umbrel's metrics and logs to Grafana Cloud
 description: >-
   Grafana Alloy on this Umbrel, outbound only, using the official
@@ -33,9 +33,9 @@ description: >-
   forwards only GET and HEAD. Host /proc, /sys, and / are mounted
   read-only for the exporters.
 releaseNotes: >-
-  Initial release. Host metrics, container metrics and logs, runner
-  /metrics, and an internal OTLP receiver, shipped to Grafana Cloud
-  after credentials are saved on the box.
+  The setup page loads and saves under the app's content security
+  policy. Credentials are posted to the app. A token in the address bar
+  is refused and is not written to the log.
 developer: Grafana Labs
 website: https://grafana.com/oss/alloy/
 dependencies: []

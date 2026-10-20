@@ -17,4 +17,4 @@ jobs:
       - name: Lint store
         run: node scripts/lint-store.mjs
       - name: Test
-        run: node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs
+        run: node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/page.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs jonbeckman-grafana-alloy/setup/page.test.mjs
