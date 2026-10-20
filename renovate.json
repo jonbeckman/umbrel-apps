@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "rebaseWhen": "conflicted",
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps):",
+  "packageRules": [
+    {
+      "description": "Base images need a reviewed merge. Never auto-merge them.",
+      "matchDatasources": ["docker"],
+      "automerge": false,
+      "addLabels": ["base-image"]
+    },
+    {
+      "description": "Images this repo builds are pinned by CI, not by Renovate.",
+      "matchPackageNames": [
+        "ghcr.io/jonbeckman/github-runner-manager",
+        "ghcr.io/jonbeckman/github-runner-image",
+        "ghcr.io/jonbeckman/grafana-alloy-setup"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Action bumps arrive as PRs and wait for review.",
+      "matchManagers": ["github-actions"],
+      "automerge": false,
+      "addLabels": ["github-actions"]
+    }
+  ]
+}

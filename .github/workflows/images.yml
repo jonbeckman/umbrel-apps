@@ -1,0 +1,112 @@
+name: Images
+
+on:
+  pull_request:
+    paths:
+      - "jonbeckman-github-runner/manager/**"
+      - "jonbeckman-github-runner/runner/**"
+      - "jonbeckman-grafana-alloy/setup/**"
+      - ".github/workflows/images.yml"
+      - "scripts/pin-images.mjs"
+  push:
+    branches: [master]
+    paths:
+      - "jonbeckman-github-runner/manager/**"
+      - "jonbeckman-github-runner/runner/**"
+      - "jonbeckman-grafana-alloy/setup/**"
+      - ".github/workflows/images.yml"
+      - "scripts/pin-images.mjs"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Read app versions
+        id: ver
+        run: |
+          version() { node -e 'const fs=require("fs"); const t=fs.readFileSync(process.argv[1],"utf8"); const m=t.match(/^version:\s*"([^"]+)"/m); if(!m) process.exit(1); process.stdout.write(m[1]);' "$1"; }
+          echo "runner=$(version jonbeckman-github-runner/umbrel-app.yml)" >> "$GITHUB_OUTPUT"
+          echo "alloy=$(version jonbeckman-grafana-alloy/umbrel-app.yml)" >> "$GITHUB_OUTPUT"
+
+      - name: Manager
+        id: manager
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: jonbeckman-github-runner/manager
+          file: jonbeckman-github-runner/manager/Dockerfile
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          tags: ghcr.io/jonbeckman/github-runner-manager:${{ steps.ver.outputs.runner }}
+
+      - name: Runner
+        id: runner
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: jonbeckman-github-runner/runner
+          file: jonbeckman-github-runner/runner/Dockerfile
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          tags: ghcr.io/jonbeckman/github-runner-image:${{ steps.ver.outputs.runner }}
+
+      - name: Alloy setup
+        id: setup
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: jonbeckman-grafana-alloy/setup
+          file: jonbeckman-grafana-alloy/setup/Dockerfile
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          tags: ghcr.io/jonbeckman/grafana-alloy-setup:${{ steps.ver.outputs.alloy }}
+
+      - name: Make packages public
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for name in github-runner-manager github-runner-image grafana-alloy-setup; do
+            gh api --method PUT "/user/packages/container/${name}/visibility" -f visibility=public \
+              || echo "Could not mark ${name} public. Set it in GitHub Packages if the pull fails."
+          done
+
+      - name: Pin digests on master
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          git checkout -B master
+          node scripts/pin-images.mjs \
+            "github-runner-manager=${{ steps.manager.outputs.digest }}" \
+            "github-runner-image=${{ steps.runner.outputs.digest }}" \
+            "grafana-alloy-setup=${{ steps.setup.outputs.digest }}"
+          if git diff --quiet; then
+            echo "Compose files already pinned."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add jonbeckman-github-runner/docker-compose.yml jonbeckman-grafana-alloy/docker-compose.yml
+          git commit -m "chore: pin app image digests"
+          git push origin master

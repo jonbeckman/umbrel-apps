@@ -1,0 +1,62 @@
+services:
+  app_proxy:
+    environment:
+      APP_HOST: jonbeckman-grafana-alloy_setup_1
+      APP_PORT: 3501
+      PROXY_AUTH_ADD: "true"
+
+  # Writes config.alloy (mode 0440, uid 473) and a read-only Docker API
+  # proxy. The host socket is mounted only here. Alloy talks to the proxy.
+  setup:
+    # pinned-by-ci: the image workflow on master replaces this tag with a digest.
+    image: ghcr.io/jonbeckman/grafana-alloy-setup:0.1.0
+    restart: unless-stopped
+    init: true
+    environment:
+      PORT: "3501"
+      ALLOY_DIR: /data/alloy
+      DOCKER_PROXY_PATH: /ro-docker/docker.sock
+      DOCKER_HOST_SOCK: /var/run/host-docker.sock
+    volumes:
+      - ${APP_DATA_DIR}/data/alloy:/data/alloy
+      - docker_ro:/ro-docker
+      - /var/run/docker.sock:/var/run/host-docker.sock
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3501/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Official Grafana Alloy. No host ports. OTLP 4317/4318 is reachable by
+  # other containers on umbrel_main_network as jonbeckman-grafana-alloy_alloy_1.
+  alloy:
+    image: grafana/alloy:v1.21.0@sha256:9726bfba078de9bc2212c60c6e643238c700b4fe0868ea78cbe03163d03d95bf
+    restart: unless-stopped
+    mem_limit: 192m
+    depends_on:
+      setup:
+        condition: service_healthy
+    environment:
+      GOMEMLIMIT: 160MiB
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --server.http.enable-pprof=false
+      - --storage.path=/var/lib/alloy
+      - --disable-reporting
+      - --stability.level=generally-available
+      - /etc/alloy/config.alloy
+    volumes:
+      - ${APP_DATA_DIR}/data/alloy:/etc/alloy:ro
+      - alloy_data:/var/lib/alloy
+      - docker_ro:/ro-docker:ro
+      - /proc:/host/proc:ro
+      - /sys:/sys:ro
+      - /:/host/root:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+volumes:
+  docker_ro:
+  alloy_data:

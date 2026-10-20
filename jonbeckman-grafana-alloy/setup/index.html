@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grafana Alloy</title>
+  <style>
+    :root { color-scheme: light dark; font-family: sans-serif; }
+    body { margin: 0 auto; max-width: 46rem; padding: 1.25rem; line-height: 1.45; }
+    label { display: block; margin: 0.45rem 0; }
+    input { width: 100%; box-sizing: border-box; font: inherit; padding: 0.35rem; }
+    button { font: inherit; margin-top: 0.6rem; }
+    .err { color: #b00020; }
+    code { font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <h1>Grafana Alloy</h1>
+  <p>Credentials for the stack <code>https://rubybandicoot3279.grafana.net</code> (US East). Copy each URL and instance ID from that stack's Grafana Cloud portal. They are stored in this app's data directory, mode 0440, and are not in git.</p>
+  <p id="state"></p>
+  <p>After saving, restart this app from the Umbrel UI so Alloy reloads the file.</p>
+  <form id="form">
+    <label>Prometheus remote_write URL <input name="promUrl" required placeholder="https://prometheus-prod-….grafana.net/api/prom/push"></label>
+    <label>Prometheus instance ID <input name="promUser" required></label>
+    <label>Loki push URL <input name="lokiUrl" required placeholder="https://logs-prod-….grafana.net/loki/api/v1/push"></label>
+    <label>Loki instance ID <input name="lokiUser" required></label>
+    <label>OTLP gateway URL <input name="otlpUrl" required placeholder="https://otlp-gateway-prod-….grafana.net/otlp"></label>
+    <label>OTLP instance ID <input name="otlpUser" required></label>
+    <label>Access policy token <input name="token" type="password" required autocomplete="off"></label>
+    <button type="submit">Save</button>
+  </form>
+  <script>
+    const state = document.getElementById('state');
+    async function refresh() {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      state.textContent = data.configured
+        ? `Credentials saved for Prometheus user ${data.promUser}. Restart the app to reload Alloy.`
+        : 'Not configured yet. Alloy is collecting nothing for Grafana Cloud.';
+      if (data.configured) {
+        for (const key of ['promUrl', 'promUser', 'lokiUrl', 'lokiUser', 'otlpUrl', 'otlpUser']) {
+          const input = document.querySelector(`[name="${key}"]`);
+          if (input && data[key]) input.value = data[key];
+        }
+      }
+    }
+    document.getElementById('form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const body = Object.fromEntries(new FormData(ev.target));
+      const res = await fetch('/api/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-GHR-Request': '1' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      state.textContent = res.ok ? 'Saved. Restart the app from the Umbrel UI.' : data.error;
+      state.className = res.ok ? '' : 'err';
+    };
+    refresh().catch((e) => { state.textContent = e.message; });
+  </script>
+</body>
+</html>

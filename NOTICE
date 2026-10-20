@@ -1,0 +1,17 @@
+Design attribution
+====================
+
+The jonbeckman-github-runner app follows the architecture published by
+zot24 in https://github.com/zot24/umbrel-apps (app id zot24-github-runner):
+a dependency-free Node manager, one ephemeral JIT runner container per job
+inside a private docker:dind daemon, private repositories only, fork jobs
+refused, a parallel cap with a memory split, and a setup page behind
+Umbrel's app_proxy login.
+
+That repository has no LICENSE file (GitHub's license API returns 404).
+Copyright in that code stays with its author. Nothing in this repository
+is a copy of that source, tests, or page. This tree is an independent
+implementation of the same kind of Umbrel app, written for Jonathan's
+store, with the changes described in the app README (multiple resource
+owners, a generic per-repo cache, Prometheus metrics, and the fleet
+toolchain).
