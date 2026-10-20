@@ -3,7 +3,7 @@ id: jonbeckman-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-github-runner/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.1"
 tagline: Self-hosted Actions runners for Jonathan's private repositories
 description: >-
   Runs GitHub Actions jobs for the private repositories you list, on this
@@ -82,10 +82,9 @@ description: >-
   JIT config. Before uninstalling, use "Remove runners from GitHub" and
   revoke the tokens.
 releaseNotes: >-
-  Initial release. Per-owner fine-grained tokens, a per-repository Nub
-  store, Playwright browser cache, and e2e replay cache, Node 24.15.0
-  and Nub 0.9.6 on the runner image, and a Prometheus /metrics endpoint
-  on the Umbrel docker network.
+  The setup page loads and saves under the app's content security
+  policy. A token in the address bar is refused and is not written to
+  the log.
 developer: Jonathan Beckman
 website: https://github.com/jonbeckman/umbrel-apps
 dependencies: []

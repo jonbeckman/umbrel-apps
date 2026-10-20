@@ -294,5 +294,16 @@ export function allowRequest(pathname, ip, { gateways, proxyIps }) {
 }
 
 export function redact(text) {
-  return String(text).replace(/github_pat_[A-Za-z0-9_]+/g, 'github_pat_[redacted]').replace(/\bgh[pousr]_[A-Za-z0-9]+\b/g, 'gh*_ [redacted]');
+  // Drop a query string that carries a secret before anything else sees it.
+  // Replacing the value in place would still log a request URL with a secret.
+  const stripped = String(text).replace(/[^\s"]*\?[^\s"]*/g, (url) => {
+    const query = url.slice(url.indexOf('?') + 1);
+    const secretKey = /(?:^|&)(token|password|secret|access_token|promurl|promuser|lokiurl|lokiuser|otlpurl|otlpuser)=/i.test(query);
+    const secretValue = /github_pat_|gh[pousr]_|glc_/i.test(query);
+    return secretKey || secretValue ? url.slice(0, url.indexOf('?')) : url;
+  });
+  return stripped
+    .replace(/github_pat_[A-Za-z0-9_]+/g, 'github_pat_[redacted]')
+    .replace(/\bgh[pousr]_[A-Za-z0-9]+\b/g, 'gh*_ [redacted]')
+    .replace(/\bglc_[A-Za-z0-9_]+\b/g, 'glc_[redacted]');
 }

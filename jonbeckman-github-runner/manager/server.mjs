@@ -65,6 +65,10 @@ const APP_PROXY_HOST = process.env.APP_PROXY_HOST || '';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const PAGE = readFileSync(path.join(HERE, 'index.html'));
+const SCRIPT = readFileSync(path.join(HERE, 'page.js'));
+// script-src is 'self' only. The page loads /page.js; an inline script would not run.
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'self'";
+const SECRET_QUERY = new Set(['token', 'password', 'secret', 'access_token']);
 
 class UserError extends Error {
   constructor(message, status = 400) {
@@ -81,6 +85,27 @@ class GitHubError extends Error {
 
 function log(level, msg, fields = {}) {
   console.log(redact(JSON.stringify({ ts: new Date().toISOString(), level, msg, ...fields })));
+}
+
+function queryHasSecret(rawUrl) {
+  const raw = String(rawUrl || '');
+  const q = raw.indexOf('?');
+  if (q === -1) return false;
+  const query = raw.slice(q + 1);
+  if (/(?:^|&)(token|password|secret|access_token)=/i.test(query)) return true;
+  if (/github_pat_|gh[pousr]_|glc_/i.test(query)) return true;
+  try {
+    const url = new URL(raw, 'http://127.0.0.1');
+    for (const key of url.searchParams.keys()) {
+      if (SECRET_QUERY.has(key.toLowerCase())) return true;
+    }
+    for (const value of url.searchParams.values()) {
+      if (/github_pat_|gh[pousr]_|glc_/i.test(value)) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 const DEFAULT_STATE = {
@@ -918,12 +943,19 @@ const server = http.createServer(async (req, res) => {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'self'",
+      'Content-Security-Policy': CSP,
     });
     res.end(payload);
   };
+  if (queryHasSecret(req.url)) {
+    let path = '';
+    try { path = new URL(req.url, 'http://127.0.0.1').pathname; } catch { /* omit */ }
+    log('warn', 'rejected secret query', { method: req.method, path });
+    return send(400, { error: 'Secrets are not accepted in the query string.' });
+  }
   try {
-    const url = new URL(req.url, 'http://127.0.0.1');
+    const url = new URL(req.url || '/', 'http://127.0.0.1');
+    url.search = '';
     const ip = clientIp(req);
     if (url.pathname !== '/metrics') await refreshProxyIps();
     if (!allowRequest(url.pathname, ip, { gateways: GATEWAYS, proxyIps })) throw new UserError('Forbidden.', 403);
@@ -934,12 +966,16 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       return send(200, PAGE, 'text/html; charset=utf-8');
     }
+    if (req.method === 'GET' && url.pathname === '/page.js') {
+      return send(200, SCRIPT, 'text/javascript; charset=utf-8');
+    }
     const result = req.method === 'GET' ? await handleApi(req, url) : await serial(() => handleApi(req, url));
     return send(200, result);
   } catch (e) {
     const status = e instanceof UserError ? e.status : 500;
-    if (!(e instanceof UserError)) log('error', 'request failed', { error: e.message });
-    send(status, { error: e.message || 'error' });
+    const message = e.message || 'error';
+    if (!(e instanceof UserError)) log('error', 'request failed', { error: message });
+    send(status, { error: redact(message) === message ? message : 'Bad request.' });
   }
 });
 

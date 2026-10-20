@@ -159,6 +159,9 @@ test('metrics name repo, conclusion, wait, and duration, and hide secrets', () =
   assert.match(text, /ghr_runner_memory_bytes/);
   assert.equal(text.includes('github_pat_'), false);
   assert.equal(redact('token github_pat_abc and ghp_zzzz'), 'token github_pat_[redacted] and gh*_ [redacted]');
+  assert.equal(redact('GET /api/owners?token=github_pat_abc&x=1'), 'GET /api/owners');
+  assert.equal(redact('GET /healthz?ready=1'), 'GET /healthz?ready=1');
+  assert.equal(redact('saved glc_exampletokenvalue'), 'saved glc_[redacted]');
 });
 
 test('request allow-list keeps the API off sibling apps and opens metrics', () => {
