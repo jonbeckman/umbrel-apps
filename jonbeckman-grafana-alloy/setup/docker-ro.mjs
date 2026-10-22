@@ -4,6 +4,15 @@
 import net from 'node:net';
 import { chmod, unlink } from 'node:fs/promises';
 
+// Dockerd must not keep the upstream socket after this response. Alloy
+// closes idle keep-alive connections and stopped log tails with a clean
+// FIN. That does not raise 'error', so both sockets are torn down on 'close'.
+function forwardHead(head) {
+  const lines = head.split('\r\n').filter((line, index) => index === 0 || !/^connection\s*:/i.test(line));
+  lines.push('Connection: close');
+  return `${lines.join('\r\n')}\r\n\r\n`;
+}
+
 export function startDockerReadProxy({ listenPath, upstreamPath }) {
   const server = net.createServer((client) => {
     let buf = Buffer.alloc(0);
@@ -35,10 +44,13 @@ export function startDockerReadProxy({ listenPath, upstreamPath }) {
       const declared = Number(head.match(/^content-length:\s*(\d+)/im)?.[1] || 0);
       const headerEnd = idx + 4;
       let forwarded = buf.length - headerEnd;
+      const pending = buf.subarray(headerEnd);
       const upstream = net.connect(upstreamPath);
       const closeBoth = () => { client.destroy(); upstream.destroy(); };
       upstream.on('error', closeBoth);
       client.on('error', closeBoth);
+      upstream.on('close', closeBoth);
+      client.on('close', closeBoth);
       const stopExtra = () => { client.destroy(); upstream.destroy(); };
       const onMore = (chunk) => {
         const room = declared - forwarded;
@@ -49,7 +61,8 @@ export function startDockerReadProxy({ listenPath, upstreamPath }) {
         if (chunk.length > room) stopExtra();
       };
       upstream.on('connect', () => {
-        upstream.write(buf);
+        if (client.destroyed || upstream.destroyed) return closeBoth();
+        upstream.write(Buffer.concat([Buffer.from(forwardHead(head), 'latin1'), pending]));
         upstream.pipe(client);
         client.on('data', forwarded >= declared ? stopExtra : onMore);
       });

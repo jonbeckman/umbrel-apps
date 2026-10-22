@@ -9,11 +9,13 @@ services:
   # proxy. The host socket is mounted only here. Alloy talks to the proxy.
   setup:
     # pinned-by-ci: the image workflow on master replaces this tag with a digest.
-    image: ghcr.io/jonbeckman/grafana-alloy-setup:0.1.1@sha256:4ca5ce217544254fe059e0c85921e1d0b0d139e7757a432cbf4f5b871786a897
+    image: ghcr.io/jonbeckman/grafana-alloy-setup:0.1.2@sha256:a18ddd3c59d93fead4f0361b7e825fc8ab979c5049cd46dc89a24c0fcbafee48
     restart: unless-stopped
     init: true
+    mem_limit: 96m
     environment:
       PORT: "3501"
+      NODE_OPTIONS: "--max-old-space-size=48"
       ALLOY_DIR: /data/alloy
       DOCKER_PROXY_PATH: /ro-docker/docker.sock
       DOCKER_HOST_SOCK: /var/run/host-docker.sock
