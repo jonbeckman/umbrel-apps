@@ -37,7 +37,7 @@ prometheus.exporter.unix "host" {
   procfs_path = "/host/proc"
   sysfs_path = "/sys"
   rootfs_path = "/host/root"
-  disable_collectors = ["mdadm", "zfs", "wifi", "hwmon"]
+  set_collectors = ["cpu", "meminfo", "loadavg", "filesystem", "diskstats", "netdev", "pressure", "vmstat", "stat", "time", "uname"]
 }
 
 prometheus.exporter.cadvisor "containers" {
@@ -46,6 +46,7 @@ prometheus.exporter.cadvisor "containers" {
   store_container_labels = false
   allowlisted_container_labels = ["com.docker.compose.project", "com.docker.compose.service"]
   storage_duration = "1m"
+  disabled_metrics = ["advtcp", "cpu_topology", "cpuset", "hugetlb", "memory_numa", "percpu", "referenced_memory", "resctrl", "sched", "tcp", "udp", "process", "disk", "diskIO"]
 }
 
 prometheus.scrape "host" {
@@ -54,10 +55,19 @@ prometheus.scrape "host" {
   forward_to = FORWARD
 }
 
+prometheus.relabel "containers" {
+  forward_to = FORWARD
+  rule {
+    source_labels = ["__name__"]
+    regex = "container_(cpu_usage_seconds_total|memory_(working_set|rss|cache|swap)_bytes|spec_memory_limit_bytes|oom_events_total|network_(receive|transmit)_bytes_total|last_seen)"
+    action = "keep"
+  }
+}
+
 prometheus.scrape "containers" {
   targets = prometheus.exporter.cadvisor.containers.targets
   scrape_interval = "60s"
-  forward_to = FORWARD
+  forward_to = [prometheus.relabel.containers.receiver]
 }
 
 prometheus.scrape "runner" {

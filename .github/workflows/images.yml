@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
 
       - name: Log in to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
@@ -79,8 +79,11 @@ jobs:
           platforms: linux/amd64
           provenance: false
           sbom: false
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
           tags: ghcr.io/jonbeckman/grafana-alloy-setup:${{ steps.ver.outputs.alloy }}
+
+      - name: Alloy setup digest
+        run: echo "grafana-alloy-setup=${{ steps.setup.outputs.digest }}"
 
       - name: Make packages public
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'

@@ -3,7 +3,7 @@ id: jonbeckman-grafana-alloy
 name: Grafana Alloy
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-grafana-alloy/icon.svg
 category: networking
-version: "0.1.1"
+version: "0.1.2"
 tagline: Ship this Umbrel's metrics and logs to Grafana Cloud
 description: >-
   Grafana Alloy on this Umbrel, outbound only, using the official
@@ -25,17 +25,19 @@ description: >-
   name). Container environment variables are not copied onto metrics.
   Alloy's own debug port listens on 127.0.0.1 inside its container.
   OTLP is not published on the LAN: other Umbrel apps reach
-  jonbeckman-grafana-alloy_alloy_1 on 4317 (gRPC) and 4318 (HTTP). The
-  memory limit is 192 MB.
+  jonbeckman-grafana-alloy_alloy_1 on 4317 (gRPC) and 4318 (HTTP).
+  Alloy's memory limit is 192 MB. The setup container is capped at 96 MB.
 
 
   Alloy does not get the host Docker socket. A small proxy in this app
   forwards only GET and HEAD. Host /proc, /sys, and / are mounted
   read-only for the exporters.
 releaseNotes: >-
-  The setup page loads and saves under the app's content security
-  policy. Credentials are posted to the app. A token in the address bar
-  is refused and is not written to the log.
+  The setup proxy closes both sockets when a Docker API connection
+  ends, including an idle keep-alive close, and the setup container is
+  capped at 96 MB. Alloy keeps the host and container series the
+  dashboard graphs and drops the rest. The host dashboard adds a memory
+  breakdown, and its Loki datasource defaults to Grafana Cloud logs.
 developer: Grafana Labs
 website: https://grafana.com/oss/alloy/
 dependencies: []
