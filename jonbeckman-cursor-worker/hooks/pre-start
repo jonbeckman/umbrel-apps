@@ -1,0 +1,11 @@
+#!/bin/sh
+# The worker runs as uid 1001. Create its data directories before compose
+# starts so the mounts are writable. Secrets live in data/state.
+set -eu
+uid=1001
+gid=1001
+base="${APP_DATA_DIR}/data"
+mkdir -p "${base}/cursor-home" "${base}/cursor-config" "${base}/workspaces" "${base}/state"
+chown "${uid}:${gid}" "${base}/cursor-home" "${base}/cursor-config" "${base}/workspaces" "${base}/state"
+chmod 0700 "${base}/state"
+chmod 0755 "${base}/cursor-home" "${base}/cursor-config" "${base}/workspaces"

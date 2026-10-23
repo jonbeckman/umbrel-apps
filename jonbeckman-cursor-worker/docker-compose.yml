@@ -1,0 +1,42 @@
+services:
+  # Setup page behind the Umbrel login. 3502 is not published on the host.
+  app_proxy:
+    environment:
+      APP_HOST: jonbeckman-cursor-worker_worker_1
+      APP_PORT: 3502
+      PROXY_AUTH_ADD: "true"
+
+  # One My Machines worker. No Docker socket and no privileged mode.
+  # The personal API key is read from the state file, not from this file.
+  worker:
+    # pinned-by-ci: the image workflow on master replaces this tag with a digest.
+    image: ghcr.io/jonbeckman/cursor-worker:0.1.0
+    restart: unless-stopped
+    init: true
+    user: "1001:1001"
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      PORT: "3502"
+      HOME: /home/cursor
+      STATE_DIR: /state
+      CURSOR_WORKER_STATE: /state/state.json
+      WORKSPACES_DIR: /workspaces
+      MANAGEMENT_ADDR: 127.0.0.1:4646
+      APP_PROXY_HOST: jonbeckman-cursor-worker_app_proxy_1
+    volumes:
+      - ${APP_DATA_DIR}/data/cursor-home:/home/cursor/.cursor
+      - ${APP_DATA_DIR}/data/cursor-config:/home/cursor/.config/cursor
+      - ${APP_DATA_DIR}/data/workspaces:/workspaces
+      - ${APP_DATA_DIR}/data/state:/state
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3502/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

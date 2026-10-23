@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cursor Worker</title>
+  <style>
+    :root { color-scheme: light dark; font-family: sans-serif; }
+    body { margin: 0 auto; max-width: 52rem; padding: 1.25rem; line-height: 1.45; }
+    h1 { font-size: 1.4rem; }
+    section { border: 1px solid #8884; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0; }
+    label { display: block; margin: 0.4rem 0; }
+    input, button, textarea { font: inherit; }
+    input[type="text"], input[type="password"], textarea { width: 100%; box-sizing: border-box; padding: 0.35rem; }
+    button { margin-right: 0.4rem; margin-top: 0.4rem; }
+    .err { color: #b00020; }
+    code, pre { font-family: ui-monospace, monospace; }
+    pre { white-space: pre-wrap; }
+    .muted { opacity: 0.75; }
+  </style>
+</head>
+<body>
+  <h1>Cursor Worker</h1>
+  <p class="muted">My Machines worker named <code>umbrel</code>. It dials out to Cursor. Nothing here listens except this page, which is behind the Umbrel login.</p>
+
+  <section>
+    <h2>Status</h2>
+    <p id="key-status"></p>
+    <div id="owners"></div>
+    <pre id="status"></pre>
+    <p id="notice"></p>
+  </section>
+
+  <section>
+    <h2>Credentials</h2>
+    <p>Cursor API key: Cursor Dashboard → API Keys. Use a personal user API key. A service-account key only starts a pool worker, and this machine is not a pool.</p>
+    <p>GitHub tokens are fine-grained (<code>github_pat_…</code>), one per resource owner. Save one whose resource owner is <code>SolZeroAI</code> and one whose resource owner is <code>jonbeckman</code>. Repository access is only the private repositories in the list. Permission: Contents, Read and write, so the worker can fetch and push. Metadata is added on its own. Classic <code>ghp_</code> tokens are refused.</p>
+    <p>Leave a password field blank to keep the saved value. The page never shows the saved key.</p>
+    <form id="form" method="post" action="/api/save" autocomplete="off">
+      <label>Cursor API key <input id="cursor" name="cursorApiKey" type="password" autocomplete="off"></label>
+      <label>SolZeroAI token <input id="token-sol" name="tokenSolZeroAI" type="password" autocomplete="off"></label>
+      <label>jonbeckman token <input id="token-jon" name="tokenJonbeckman" type="password" autocomplete="off"></label>
+      <label>Another owner <input id="owner" name="owner" type="text" placeholder="owner" autocomplete="off"></label>
+      <label>That owner's token <input id="token" name="token" type="password" autocomplete="off"></label>
+      <label>Repositories, one <code>owner/repo</code> per line
+        <textarea id="repos" name="repos" rows="10" autocomplete="off"></textarea>
+      </label>
+      <button type="submit">Save and Restart</button>
+    </form>
+  </section>
+
+  <script src="/page.js"></script>
+</body>
+</html>

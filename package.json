@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/page.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs jonbeckman-grafana-alloy/setup/page.test.mjs",
+    "test": "node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/page.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs jonbeckman-grafana-alloy/setup/page.test.mjs jonbeckman-cursor-worker/worker/lib.test.mjs jonbeckman-cursor-worker/worker/page.test.mjs jonbeckman-cursor-worker/worker/worker.test.mjs",
     "lint": "node scripts/lint-store.mjs"
   }
 }

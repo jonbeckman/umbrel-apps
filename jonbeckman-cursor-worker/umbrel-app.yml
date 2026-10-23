@@ -1,0 +1,67 @@
+manifestVersion: 1.1
+id: jonbeckman-cursor-worker
+name: Cursor Worker
+icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-cursor-worker/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Cursor cloud agents on this Umbrel, in My Machines mode
+description: >-
+  Runs Cursor's self-hosted cloud agent worker on this Umbrel so agents
+  launched from Jonathan's Cursor account can edit these repositories
+  here. The worker is a My Machines worker named umbrel. It is not a team
+  pool and it does not use a service-account key.
+
+
+  Open the app and paste a personal user API key from Cursor Dashboard →
+  API Keys. Then save one fine-grained GitHub token whose resource owner
+  is SolZeroAI and one whose resource owner is jonbeckman. Each token
+  needs Contents: Read and write on the private repositories in the list.
+  Classic tokens are refused. The repository list starts as SolZeroAI/janus,
+  alchemy.new, platform, mahoraga-giia, grokcast, and jonbeckman/grok-bot,
+  spray, and umbrel-apps. Change that list on the page. gtt-app is not
+  included.
+
+
+  The worker only serves checkouts it already has. On save, and again if
+  the process exits, the app clones or fetches each repository into
+  /workspaces and restarts `agent worker` with one --worker-dir per
+  checkout that succeeded. A repository the token cannot reach is logged
+  and skipped. Git remotes stay https://github.com/owner/repo.git with
+  the token kept out of the URL.
+
+
+  Secrets are stored in data/state/state.json, mode 0600, and are not in
+  git. The page shows "key saved" or "token saved" and does not repeat
+  the secret. ~/.cursor, ~/.config/cursor, and the checkouts persist
+  under this app's data directory. The container runs as uid 1001, with
+  a 2048 MB memory cap, no Docker socket, and no privileged mode. The
+  only inbound service is this page, behind the Umbrel login. The worker
+  needs outbound HTTPS to api2.cursor.sh, api2direct.cursor.sh,
+  downloads.cursor.com, the Cursor artifact buckets in
+  s3.us-east-1.amazonaws.com, github.com, and api.github.com.
+
+
+  In Cursor, start an agent on the umbrel machine under My Machines, or
+  mention worker=umbrel from a linked GitHub, Slack, or Linear account.
+  The first checkout that was prepared is the machine's primary
+  repository.
+releaseNotes: >-
+  First release. A My Machines worker named umbrel, with a setup page for
+  the personal Cursor API key, per-owner GitHub tokens, and the
+  repository list.
+developer: Jonathan Beckman
+website: https://github.com/jonbeckman/umbrel-apps
+dependencies: []
+repo: https://github.com/jonbeckman/umbrel-apps
+support: https://github.com/jonbeckman/umbrel-apps/issues
+port: 3502
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: jonbeckman
+submission: https://github.com/jonbeckman/umbrel-apps
+backupIgnore:
+  - data/workspaces
