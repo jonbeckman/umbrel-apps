@@ -23,6 +23,8 @@ test('unconfigured alloy config ships nothing and hides container env', () => {
   assert.match(text, /forward_to = \[\]/);
   assert.match(text, /set_collectors = \["cpu", "meminfo", "loadavg", "filesystem", "diskstats", "netdev", "pressure", "vmstat", "stat", "time", "uname"\]/);
   assert.equal(text.includes('disable_collectors'), false);
+  assert.equal(text.includes('external_labels'), false);
+  assert.equal(text.includes('host = "umbrel"'), false);
   assert.match(text, /disabled_metrics = \["advtcp", "cpu_topology", "cpuset", "hugetlb", "memory_numa", "percpu", "referenced_memory", "resctrl", "sched", "tcp", "udp", "process", "disk", "diskIO"\]/);
   assert.match(text, /prometheus\.relabel "containers"/);
   assert.match(text, /forward_to = \[prometheus\.relabel\.containers\.receiver\]/);
@@ -58,4 +60,24 @@ test('configured config escapes secrets and opens OTLP only on the docker networ
   assert.throws(() => checkSecrets({ ...secrets, promUrl: 'http://example' }), /https/);
   assert.throws(() => checkSecrets({ ...secrets, token: 'has space' }), /Token/);
   assert.equal(JSON.stringify(publicStatus({ ...secrets, token })).includes('glc_'), false);
+});
+
+test('configured config adds host=umbrel on remote write and loki write only', () => {
+  const text = renderAlloy(secrets);
+  const label = 'external_labels = { host = "umbrel" }';
+  const places = [];
+  let from = 0;
+  while (from < text.length) {
+    const at = text.indexOf(label, from);
+    if (at < 0) break;
+    const headers = [...text.slice(0, at).matchAll(/^([a-z0-9_.]+ "[^"]+") \{$/gm)];
+    places.push(headers.at(-1)?.[1]);
+    from = at + label.length;
+  }
+  assert.deepEqual(places, ['prometheus.remote_write "grafana"', 'loki.write "grafana"']);
+  assert.match(text, /labels = \{ job = "umbrel" \}/);
+  assert.equal(text.includes('host.name'), false);
+  const bare = renderAlloy(null);
+  assert.equal(bare.includes(label), false);
+  assert.equal(bare.includes('external_labels'), false);
 });

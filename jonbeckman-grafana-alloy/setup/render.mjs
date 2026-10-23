@@ -89,6 +89,7 @@ export function renderAlloy(secrets) {
   const s = checkSecrets(secrets);
   const ship = `
 prometheus.remote_write "grafana" {
+  external_labels = { host = "umbrel" }
   endpoint {
     url = ${riverString(s.promUrl)}
     basic_auth {
@@ -123,6 +124,7 @@ loki.source.docker "containers" {
 }
 
 loki.write "grafana" {
+  external_labels = { host = "umbrel" }
   endpoint {
     url = ${riverString(s.lokiUrl)}
     basic_auth {
