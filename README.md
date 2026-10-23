@@ -21,7 +21,7 @@ Open that store from the same menu and install an app the same way as an officia
 | App | ID | Version | Port | What it does |
 | --- | --- | --- | --- | --- |
 | GitHub Runner | `jonbeckman-github-runner` | 0.1.1 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
-| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.2 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
+| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.3 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 | Cursor Worker | `jonbeckman-cursor-worker` | 0.1.0 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
 
 None of the apps publish a host port. The setup pages are behind the Umbrel login (`PROXY_AUTH_ADD`).
@@ -101,7 +101,8 @@ It collects:
 
 - Host metrics from `prometheus.exporter.unix` with `/proc`, `/sys`, and `/` mounted read-only. Collectors are cpu, meminfo, loadavg, filesystem, diskstats, netdev, pressure, vmstat, stat, time, and uname, which covers `node_cpu_seconds_total` and the `node_memory_*` series on the dashboard.
 - Container metrics from `prometheus.exporter.cadvisor`, relabeled down to CPU, memory, network, OOM, and `container_last_seen`. Container labels are limited to the compose project and service, so environment variables are not turned into metric labels.
-- All container logs via `loki.source.docker`, labeled `umbrel_app` from the compose project (the Umbrel app id) and `container`.
+- All container logs via `loki.source.docker`, labeled `umbrel_app` from the compose project (the Umbrel app id) and `container`. The Loki source label stays `job=umbrel`.
+- Prometheus remote write and Loki push add the external label `host=umbrel`. OTLP is forwarded as received: Alloy v1.21's `otelcol.exporter.otlphttp` has no argument for a resource attribute such as `host.name`, and this app stays at stability `generally-available`.
 - The runner manager's `/metrics`.
 - OTLP from other apps on `4317` (gRPC) and `4318` (HTTP). Those ports are not published on the host. `exports.sh` sets `JONBECKMAN_GRAFANA_ALLOY_OTLP_GRPC` and `JONBECKMAN_GRAFANA_ALLOY_OTLP_HTTP`.
 

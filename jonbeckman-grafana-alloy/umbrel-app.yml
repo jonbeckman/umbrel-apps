@@ -3,7 +3,7 @@ id: jonbeckman-grafana-alloy
 name: Grafana Alloy
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-grafana-alloy/icon.svg
 category: networking
-version: "0.1.2"
+version: "0.1.3"
 tagline: Ship this Umbrel's metrics and logs to Grafana Cloud
 description: >-
   Grafana Alloy on this Umbrel, outbound only, using the official
@@ -33,11 +33,7 @@ description: >-
   forwards only GET and HEAD. Host /proc, /sys, and / are mounted
   read-only for the exporters.
 releaseNotes: >-
-  The setup proxy closes both sockets when a Docker API connection
-  ends, including an idle keep-alive close, and the setup container is
-  capped at 96 MB. Alloy keeps the host and container series the
-  dashboard graphs and drops the rest. The host dashboard adds a memory
-  breakdown, and its Loki datasource defaults to Grafana Cloud logs.
+  Metrics and logs now carry host=umbrel so dashboards can compare hosts.
 developer: Grafana Labs
 website: https://grafana.com/oss/alloy/
 dependencies: []
