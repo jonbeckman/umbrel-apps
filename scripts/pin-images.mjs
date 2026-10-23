@@ -32,6 +32,11 @@ const files = [
     version: versionOf('jonbeckman-grafana-alloy/umbrel-app.yml'),
     names: ['grafana-alloy-setup'],
   },
+  {
+    file: 'jonbeckman-cursor-worker/docker-compose.yml',
+    version: versionOf('jonbeckman-cursor-worker/umbrel-app.yml'),
+    names: ['cursor-worker'],
+  },
 ];
 
 for (const item of files) {

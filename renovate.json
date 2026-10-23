@@ -17,7 +17,8 @@
       "matchPackageNames": [
         "ghcr.io/jonbeckman/github-runner-manager",
         "ghcr.io/jonbeckman/github-runner-image",
-        "ghcr.io/jonbeckman/grafana-alloy-setup"
+        "ghcr.io/jonbeckman/grafana-alloy-setup",
+        "ghcr.io/jonbeckman/cursor-worker"
       ],
       "enabled": false
     },

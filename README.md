@@ -22,8 +22,9 @@ Open that store from the same menu and install an app the same way as an officia
 | --- | --- | --- | --- | --- |
 | GitHub Runner | `jonbeckman-github-runner` | 0.1.1 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
 | Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.2 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
+| Cursor Worker | `jonbeckman-cursor-worker` | 0.1.0 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
 
-Neither app publishes a host port. The setup pages are behind the Umbrel login (`PROXY_AUTH_ADD`).
+None of the apps publish a host port. The setup pages are behind the Umbrel login (`PROXY_AUTH_ADD`).
 
 ### GitHub Runner
 
@@ -117,6 +118,22 @@ They are written to `data/alloy/config.alloy` as mode 0440, owned by uid 473 (th
 
 A starter dashboard is `jonbeckman-grafana-alloy/dashboards/umbrel-host-runners.json`. Import it in Grafana and pick this stack's Prometheus and Loki datasources.
 
+### Cursor Worker
+
+My Machines mode, not a team pool. The machine name is `umbrel`. Cursor's reference image in `cursor/cookbook` (`self-hosted-cloud-agent`) is pool mode and starts `agent worker --pool` with a service-account key. This app uses that image's Ubuntu 24.04 toolchain idea and a different entrypoint.
+
+Open the app after installing it. The setup page is behind the Umbrel login.
+
+1. Cursor Dashboard → API Keys. Create a **personal user** API key. Paste it in **Cursor API key**. A service-account key will not connect, because this worker does not pass `--pool`.
+2. GitHub → Settings → Developer settings → Fine-grained tokens. Create one whose resource owner is **SolZeroAI** and one whose resource owner is **jonbeckman**. Repository access is only the private repositories in the list. Repository permission: **Contents: Read and write** (Metadata is added on its own). Paste each token in the matching field. Classic `ghp_` tokens are refused.
+3. The repository box starts with `SolZeroAI/janus`, `SolZeroAI/alchemy.new`, `SolZeroAI/platform`, `SolZeroAI/mahoraga-giia`, `SolZeroAI/grokcast`, `jonbeckman/grok-bot`, `jonbeckman/spray`, and `jonbeckman/umbrel-apps`. Edit it and press **Save and Restart**. `gtt-app` is not in the list.
+4. Leave a password field blank to keep the saved value. The page says **Key saved.** The password box is cleared on purpose. Secrets are `data/state/state.json`, mode 0600.
+5. On cursor.com/agents, choose the `umbrel` machine under My Machines. From GitHub, Slack, or Linear, `worker=umbrel` targets it when that Cursor account is linked and the checkout's git remote matches the repository.
+
+The first checkout that clones successfully is the primary repository Cursor shows for the machine. A repository the token cannot read is logged and skipped. The worker keeps running with the others. If the worker process exits, it is started again with backoff. The container itself stays up so the setup page does not crash-loop.
+
+The container runs as uid 1001, memory cap 2048 MB, no Docker socket, no privileged mode. Outbound HTTPS is required to `api2.cursor.sh`, `api2direct.cursor.sh`, `downloads.cursor.com`, `agent-stores.s3.us-east-1.amazonaws.com`, `cloud-agent-artifacts.s3.us-east-1.amazonaws.com`, `github.com`, and `api.github.com`. Nothing inbound is published. `gh` is installed and is not logged in. Git commit name and email are not set. Live workspace (`--connect-workspace`) is off.
+
 ## Images
 
 | Image | Built here | Base |
@@ -124,14 +141,15 @@ A starter dashboard is `jonbeckman-grafana-alloy/dashboards/umbrel-host-runners.
 | `ghcr.io/jonbeckman/github-runner-manager` | yes | `node:22-alpine` |
 | `ghcr.io/jonbeckman/github-runner-image` | yes | `ghcr.io/actions/actions-runner` and `node:24.15.0-bookworm-slim` |
 | `ghcr.io/jonbeckman/grafana-alloy-setup` | yes | `node:22-alpine` |
+| `ghcr.io/jonbeckman/cursor-worker` | yes | `ubuntu:24.04` and `node:24.15.0-bookworm-slim` |
 | `docker:29.9.1-dind` | no | Docker official |
 | `grafana/alloy:v1.21.0` | no | Grafana official |
 
 Built images are `linux/amd64` only. The NUC is x86_64, and the Nub archive pinned in the runner Dockerfile is `nub-linux-x64`.
 
-Pull requests run the unit tests and build the three images without pushing them. A push to `master` that changes an image source pushes the images to GHCR and commits digest pins into the compose files (`chore: pin app image digests`). Until that commit lands, compose names the images by tag with a `# pinned-by-ci` marker. Umbrel should be updated after the pin commit, and the GHCR packages must be public or the pull is unauthorized.
+Pull requests run the unit tests and build the four images without pushing them. A push to `master` that changes an image source pushes the images to GHCR and commits digest pins into the compose files (`chore: pin app image digests`). Until that commit lands, compose names the images by tag with a `# pinned-by-ci` marker. Umbrel should be updated after the pin commit, and the GHCR packages must be public or the pull is unauthorized.
 
-The workflow tries to mark the three packages public. If it cannot, open each package under GitHub → Packages and set the visibility to public. The Umbrel has no registry credentials.
+The workflow tries to mark the four packages public. If it cannot, open each package under GitHub → Packages and set the visibility to public. The Umbrel has no registry credentials.
 
 Base image digests in the Dockerfiles and compose files are pinned now. Our image digests are pinned by the workflow after the first green build on `master`.
 
@@ -153,6 +171,7 @@ Renovate (`renovate.json`) opens pull requests for Docker base images and GitHub
 - Nub 0.9.6 docs and the published `nub-linux-x64.tar.gz.sha256` (`77220dc6deb6ebbdb0a282c61b80a157e32016e088f3632d8fb4bf74a931e4ce`), confirmed by running the binary.
 - `nubjs/setup-nub` `v0.6.0` `action.yml`: an exact nub version already at `$RUNNER_TOOL_CACHE/nub/<version>/$RUNNER_ARCH/bin/nub` is reused.
 - tester-army e2e docs: replay files live under `.e2e/cache` or `E2E_CACHE_DIR`; browser binaries follow Playwright's `PLAYWRIGHT_BROWSERS_PATH`.
+- Cursor docs for Self-Hosted Machines and My Machines (`https://cursor.com/docs/cloud-agent/self-hosted` and the My Machines guide), the CLI parameters page, and the cookbook image at `cursor/cookbook` `self-hosted-cloud-agent/docker/Dockerfile` (pool entrypoint, not used here). The image built here installs CLI `2026.10.22-27dcf5f`. `agent worker --help` puts worker flags before `start` and `--verbose` on `start`. That CLI defaults `--idle-release-timeout` to 3600; this app passes 0 so the machine stays connected until it is stopped. Connected status is the `cursor_self_hosted_worker_connected` metric. `/readyz` is 503 while a session is running, so it is not the connected signal.
 
 `zot24/umbrel-apps` has no license file. The runner follows that app's design (JIT containers, private repos, fork refusal, memory split, app_proxy setup page) and is an independent implementation. See `NOTICE`.
 
@@ -173,4 +192,4 @@ What that code does that matters here:
 
 ## Not checked on an Umbrel
 
-This repository's tests do not start umbrelOS. Still unchecked on the NUC: installing the store, Umbrel login in front of the setup pages, a privileged `dind` job, whether `prometheus.exporter.cadvisor` returns useful numbers without a privileged Alloy container, whether Alloy accepts the unconfigured config and the OTLP receivers at stability `generally-available`, the real tester-army e2e binary honoring an absolute `E2E_CACHE_DIR`, GHCR packages actually being public, and Alloy staying under 192 MB resident and the setup container staying under 96 MB.
+This repository's tests do not start umbrelOS. Still unchecked on the NUC: installing the store, Umbrel login in front of the setup pages, a privileged `dind` job, whether `prometheus.exporter.cadvisor` returns useful numbers without a privileged Alloy container, whether Alloy accepts the unconfigured config and the OTLP receivers at stability `generally-available`, the real tester-army e2e binary honoring an absolute `E2E_CACHE_DIR`, GHCR packages actually being public, Alloy staying under 192 MB resident and the setup container staying under 96 MB, and whether the Cursor worker connects with a personal API key and clones the private repositories. The worker image does build, and `agent worker --help` on that image matches the flags this app passes.

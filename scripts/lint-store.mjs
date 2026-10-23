@@ -13,7 +13,7 @@ if (storeId !== 'jonbeckman') fail(`store id is ${storeId}, expected jonbeckman`
 if (!storeName) fail('store name is missing');
 
 const required = ['manifestVersion', 'id', 'category', 'name', 'version', 'tagline', 'description', 'developer', 'website', 'dependencies', 'repo', 'support', 'port', 'gallery', 'path', 'submitter', 'submission'];
-const allowedFrom = /^(node|docker|grafana\/alloy|ghcr\.io\/actions\/actions-runner)[:@]/;
+const allowedFrom = /^(node|docker|grafana\/alloy|ghcr\.io\/actions\/actions-runner|ubuntu)[:@]/;
 
 function apps() {
   return readdirSync(root).filter((name) => {
