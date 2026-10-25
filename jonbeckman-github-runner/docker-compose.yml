@@ -44,7 +44,7 @@ services:
 
   manager:
     # pinned-by-ci: the image workflow on master replaces this tag with a digest.
-    image: ghcr.io/jonbeckman/github-runner-manager:0.1.2
+    image: ghcr.io/jonbeckman/github-runner-manager:0.1.2@sha256:7024b9b299afd2d0042ab691dc4b7f809afaa345ead709197961755127ebd81f
     restart: on-failure
     init: true
     stop_grace_period: 30s
@@ -65,7 +65,7 @@ services:
       # once, not on every health check.
       APP_PROXY_HOST: jonbeckman-github-runner_app_proxy_1
       # pinned-by-ci
-      RUNNER_IMAGE: ghcr.io/jonbeckman/github-runner-image:0.1.2
+      RUNNER_IMAGE: ghcr.io/jonbeckman/github-runner-image:0.1.2@sha256:dbca9b94e36dbf87dcfe0ba2efd390674bd980bec4c726ab16ae76c0be828b47
     volumes:
       - ${APP_DATA_DIR}/data/sock:/sock
       - ${APP_DATA_DIR}/data/manager:/state
