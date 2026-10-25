@@ -17,7 +17,10 @@ import {
   ownerOf,
   ownsRunner,
   parseRunnerLog,
+  collectProxyIps,
   planSpawns,
+  proxyLookupHosts,
+  proxyLookupNotice,
   pruneHistory,
   reapReason,
   redact,
@@ -172,6 +175,64 @@ test('request allow-list keeps the API off sibling apps and opens metrics', () =
   assert.equal(allowRequest('/api/status', '172.17.0.9', { gateways, proxyIps }), false);
   assert.equal(allowRequest('/metrics', '172.17.0.9', { gateways, proxyIps }), true);
   assert.equal(allowRequest('/healthz', '127.0.0.1', { gateways, proxyIps }), true);
+  // umbrelOS 2 has no app_proxy container. The host gateway is the proxy.
+  assert.equal(allowRequest('/', '172.17.0.1', { gateways, proxyIps: new Set() }), true);
+  assert.equal(allowRequest('/api/status', '::ffff:172.17.0.1', { gateways, proxyIps: new Set() }), true);
+  assert.equal(allowRequest('/api/status', '172.17.0.9', { gateways, proxyIps: new Set() }), false);
+});
+
+test('proxy lookup tries the sidecar names and logs a miss once', () => {
+  assert.deepEqual(proxyLookupHosts(''), []);
+  assert.deepEqual(proxyLookupHosts('jonbeckman-github-runner_app_proxy_1'), [
+    'jonbeckman-github-runner_app_proxy_1',
+    'app_proxy',
+    'jonbeckman-github-runner-app_proxy-1',
+    'jonbeckman-github-runner-app-proxy-1',
+  ]);
+  const miss = [
+    { host: 'jonbeckman-github-runner_app_proxy_1', error: 'ENOTFOUND' },
+    { host: 'app_proxy', error: 'ENOTFOUND' },
+    { host: 'jonbeckman-github-runner-app_proxy-1', error: 'ENODATA' },
+    { host: 'jonbeckman-github-runner-app-proxy-1', error: 'ENOTFOUND' },
+  ];
+  const first = proxyLookupNotice('', miss);
+  assert.deepEqual(first.ips, []);
+  assert.equal(first.keepPrevious, false);
+  assert.equal(first.log.level, 'info');
+  assert.equal(first.log.msg, 'app proxy container is not on this network');
+  assert.equal(first.log.fields.hosts.includes('app_proxy'), true);
+  const again = proxyLookupNotice(first.signature, miss);
+  assert.equal(again.log, null);
+  assert.equal(again.signature, first.signature);
+
+  const shared = proxyLookupNotice('', [
+    { host: 'app_proxy', ips: ['10.0.0.2', '10.0.0.3'] },
+    { host: 'jonbeckman-github-runner_app_proxy_1', error: 'ENOTFOUND' },
+  ]);
+  assert.deepEqual(shared.ips, []);
+  const unique = collectProxyIps([
+    { host: 'app_proxy', ips: ['10.0.0.8'] },
+    { host: 'jonbeckman-github-runner_app_proxy_1', ips: ['10.0.0.8', '10.0.0.9'] },
+  ]);
+  assert.deepEqual(unique, ['10.0.0.8', '10.0.0.9']);
+
+  const down = proxyLookupNotice('', [
+    { host: 'app_proxy', error: 'ESERVFAIL' },
+    { host: 'jonbeckman-github-runner_app_proxy_1', error: 'ENOTFOUND' },
+  ]);
+  assert.equal(down.keepPrevious, true);
+  assert.equal(down.log.level, 'error');
+  assert.equal(down.log.msg, 'app proxy lookup failed');
+  assert.equal(proxyLookupNotice(down.signature, [
+    { host: 'jonbeckman-github-runner_app_proxy_1', error: 'ENOTFOUND' },
+    { host: 'app_proxy', error: 'ESERVFAIL' },
+  ]).log, null);
+  const up = proxyLookupNotice(down.signature, [
+    { host: 'jonbeckman-github-runner-app_proxy-1', ips: ['10.0.0.4'] },
+  ]);
+  assert.deepEqual(up.ips, ['10.0.0.4']);
+  assert.equal(up.log.msg, 'app proxy resolved');
+  assert.deepEqual(up.log.fields.hosts, ['jonbeckman-github-runner-app_proxy-1']);
 });
 
 test('history drops entries older than a week', () => {
@@ -192,4 +253,13 @@ test('compose does not publish the manager and keeps dind off the default networ
   assert.match(dind, /ghr_private/);
   assert.match(dind, /--data-root=\/data\/data/);
   assert.doesNotMatch(dind, /umbrel_main_network/);
+  const host = compose.match(/APP_PROXY_HOST:\s*(\S+)/)[1];
+  assert.deepEqual(proxyLookupHosts(host), [
+    'jonbeckman-github-runner_app_proxy_1',
+    'app_proxy',
+    'jonbeckman-github-runner-app_proxy-1',
+    'jonbeckman-github-runner-app-proxy-1',
+  ]);
+  assert.match(compose, /ghcr\.io\/jonbeckman\/github-runner-manager:0\.1\.2\b/);
+  assert.match(compose, /ghcr\.io\/jonbeckman\/github-runner-image:0\.1\.2\b/);
 });

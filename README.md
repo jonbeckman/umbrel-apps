@@ -20,7 +20,7 @@ Open that store from the same menu and install an app the same way as an officia
 
 | App | ID | Version | Port | What it does |
 | --- | --- | --- | --- | --- |
-| GitHub Runner | `jonbeckman-github-runner` | 0.1.1 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
+| GitHub Runner | `jonbeckman-github-runner` | 0.1.2 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
 | Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.3 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 | Cursor Worker | `jonbeckman-cursor-worker` | 0.1.0 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
 

@@ -44,7 +44,7 @@ services:
 
   manager:
     # pinned-by-ci: the image workflow on master replaces this tag with a digest.
-    image: ghcr.io/jonbeckman/github-runner-manager:0.1.1@sha256:da59e644bcd7c0be7ebb7fc3df3f642f93fe0ccf5ea9c3428ed6f1891cc52d5e
+    image: ghcr.io/jonbeckman/github-runner-manager:0.1.2
     restart: on-failure
     init: true
     stop_grace_period: 30s
@@ -59,9 +59,13 @@ services:
       WORK_DIR: /ghr
       CACHE_DIR: /ghr-cache
       EXTERNALS_DIR: /externals
+      # Unique sidecar name, plus the service alias and Compose v2 hyphen
+      # forms, are resolved in the manager. umbrelOS 2 does not start
+      # app_proxy; the host bridge gateway is the proxy. A miss is logged
+      # once, not on every health check.
       APP_PROXY_HOST: jonbeckman-github-runner_app_proxy_1
       # pinned-by-ci
-      RUNNER_IMAGE: ghcr.io/jonbeckman/github-runner-image:0.1.1@sha256:800cebfcdbb6246327f89d2d0f596bf647eef62cb92d5963ce25798cf853ea9a
+      RUNNER_IMAGE: ghcr.io/jonbeckman/github-runner-image:0.1.2
     volumes:
       - ${APP_DATA_DIR}/data/sock:/sock
       - ${APP_DATA_DIR}/data/manager:/state
