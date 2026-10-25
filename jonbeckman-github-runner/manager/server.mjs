@@ -5,7 +5,7 @@
 // daemon. Tokens stay in this process. A runner only receives its own
 // single-use JIT config.
 import http from 'node:http';
-import { lookup } from 'node:dns/promises';
+import { resolve4, resolve6 } from 'node:dns/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { chmod, chown, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
@@ -33,6 +33,8 @@ import {
   parseRunnerLog,
   planSpawns,
   pruneHistory,
+  proxyLookupHosts,
+  proxyLookupNotice,
   reapReason,
   redact,
   renderMetrics,
@@ -920,14 +922,48 @@ let routeText = '';
 try { routeText = readFileSync('/proc/net/route', 'utf8'); } catch { /* not linux */ }
 const GATEWAYS = bridgeGatewayIps(routeText);
 let proxyIps = new Set();
+let proxySignature = '';
+let proxyFreshUntil = 0;
+
+// c-ares queries Docker DNS directly. musl getaddrinfo (dns.lookup) can
+// reject a hostname that contains an underscore before any query is sent.
+async function resolveProxyHost(host) {
+  const ips = [];
+  const errors = [];
+  for (const resolve of [resolve4, resolve6]) {
+    try {
+      for (const address of await resolve(host)) ips.push(address);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (ips.length) return ips;
+  const hard = errors.find((error) => error?.code && error.code !== 'ENOTFOUND' && error.code !== 'ENODATA');
+  if (hard) throw hard;
+  const missing = new Error(`ENOTFOUND ${host}`);
+  missing.code = 'ENOTFOUND';
+  throw missing;
+}
 
 async function refreshProxyIps() {
-  if (!APP_PROXY_HOST) return;
-  try {
-    proxyIps = new Set((await lookup(APP_PROXY_HOST, { all: true })).map((a) => a.address));
-  } catch (e) {
-    log('error', 'app proxy lookup failed', { host: APP_PROXY_HOST, error: e.code || e.message });
+  const hosts = proxyLookupHosts(APP_PROXY_HOST);
+  if (!hosts.length || Date.now() < proxyFreshUntil) return;
+  // Claim the window before the first await so a health check and the
+  // refresh timer do not both query and both log the same miss.
+  proxyFreshUntil = Date.now() + 30_000;
+  const results = [];
+  for (const host of hosts) {
+    try {
+      results.push({ host, ips: await resolveProxyHost(host) });
+    } catch (error) {
+      results.push({ host, error: error.code || error.message });
+    }
   }
+  const notice = proxyLookupNotice(proxySignature, results);
+  proxySignature = notice.signature;
+  if (!notice.keepPrevious) proxyIps = new Set(notice.ips);
+  if (notice.log) log(notice.log.level, notice.log.msg, notice.log.fields);
+  proxyFreshUntil = Date.now() + (notice.keepPrevious ? 15_000 : 30_000);
 }
 
 function clientIp(req) {

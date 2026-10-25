@@ -285,12 +285,93 @@ export function bridgeGatewayIps(routeText) {
 }
 
 // /metrics is for sibling containers (Grafana Alloy). Everything else is
-// the setup page: app_proxy, the bridge gateway, or loopback.
+// the setup page: a resolved app-proxy address, the bridge gateway, or
+// loopback. On umbrelOS 2 the app gateway is umbreld on the host, so the
+// bridge gateway is the proxy and there is no sidecar to resolve.
 export function allowRequest(pathname, ip, { gateways, proxyIps }) {
   const normalized = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
   if (pathname === '/metrics') return true;
   if (gateways.has(normalized) || gateways.has(ip) || proxyIps.has(normalized) || proxyIps.has(ip)) return true;
   return false;
+}
+
+const PROXY_NOT_FOUND = new Set(['ENOTFOUND', 'ENODATA']);
+
+// Names that can be this app's proxy on the Docker network. umbrelOS 2
+// deletes app_proxy from the runtime compose, so none of these exist and
+// the host bridge gateway is the proxy. Older Umbrel still starts a
+// sidecar. Its unique DNS name is the container_name
+// `<app-id>_app_proxy_1`. Compose v2 would otherwise use a hyphen before
+// the replica index. `app_proxy` is the compose service alias; on the
+// shared umbrel_main_network that alias is not unique to this app.
+export function proxyLookupHosts(configured = '') {
+  const hosts = [];
+  const add = (value) => {
+    const name = String(value || '').trim().replace(/\.$/, '');
+    if (!name || hosts.includes(name)) return;
+    hosts.push(name);
+  };
+  add(configured);
+  if (!hosts.length) return hosts;
+  add('app_proxy');
+  const legacy = String(configured || '').trim().match(/^(.*)_app_proxy_1$/);
+  if (legacy) {
+    add(`${legacy[1]}-app_proxy-1`);
+    add(`${legacy[1]}-app-proxy-1`);
+  }
+  return hosts;
+}
+
+// Union of addresses we will treat as this app's proxy. A shared
+// `app_proxy` alias that answers with more than one address is ignored
+// so another app's sidecar is not added to the allow list.
+export function collectProxyIps(results) {
+  const ips = [];
+  const add = (ip) => {
+    if (ip && !ips.includes(ip)) ips.push(ip);
+  };
+  for (const row of results || []) {
+    const found = row.ips || [];
+    if (!found.length) continue;
+    if (row.host === 'app_proxy' && found.length > 1) continue;
+    for (const ip of found) add(ip);
+  }
+  return ips;
+}
+
+// One log per distinct lookup outcome. Repeating the same miss, which is
+// the steady state on umbrelOS 2, does not log again.
+export function proxyLookupNotice(previousSignature, results) {
+  const missing = [];
+  const failed = [];
+  const resolved = [];
+  for (const row of results || []) {
+    if (row.ips?.length) resolved.push(row.host);
+    else if (!row.error || PROXY_NOT_FOUND.has(row.error)) missing.push(row.host);
+    else failed.push({ host: row.host, error: row.error });
+  }
+  const ips = collectProxyIps(results);
+  const signature = JSON.stringify({
+    ips: [...ips].sort(),
+    missing: [...missing].sort(),
+    failed: [...failed].sort((a, b) => a.host.localeCompare(b.host) || a.error.localeCompare(b.error)),
+    resolved: [...resolved].sort(),
+  });
+  const keepPrevious = failed.length > 0 && resolved.length === 0;
+  if (signature === previousSignature) return { signature, ips, log: null, keepPrevious };
+  let log;
+  if (failed.length) {
+    log = { level: 'error', msg: 'app proxy lookup failed', fields: { failed } };
+  } else if (!ips.length) {
+    log = {
+      level: 'info',
+      msg: 'app proxy container is not on this network',
+      fields: { hosts: [...missing].sort() },
+    };
+  } else {
+    log = { level: 'info', msg: 'app proxy resolved', fields: { hosts: [...resolved].sort() } };
+  }
+  return { signature, ips, log, keepPrevious };
 }
 
 export function redact(text) {
