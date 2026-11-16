@@ -2,7 +2,7 @@
 
 Community app store for umbrelOS 2. Store id `jonbeckman`. The Umbrel UI shows it as **Jonathan's Apps App Store**.
 
-Images are built from this repository and pulled from public GHCR packages. Base images are official ones, digest-pinned. Renovate opens pull requests for base-image and GitHub Action bumps and does not auto-merge them.
+Images are built from this repository and pulled from public GHCR packages. Base images are official ones, digest-pinned. Renovate opens pull requests for image and GitHub Action bumps. Digest, patch, and minor updates merge after lint when no review thread is open. Major updates wait.
 
 The default branch of this repository is `master`.
 
@@ -162,22 +162,25 @@ Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both ap
 
 Built images are `linux/amd64` only. The NUC is x86_64, and the Nub archive pinned in the runner Dockerfile is `nub-linux-x64`.
 
-Pull requests run the store lint (`node scripts/lint-store.mjs`) and build the four images without pushing them. There is no formatter and no typechecker in this repository, so CI does not run those. A push to `master` that changes an image source pushes the images to GHCR and commits digest pins into the compose files (`chore: pin app image digests`). Until that commit lands, compose names the images by tag with a `# pinned-by-ci` marker. Umbrel should be updated after the pin commit, and the GHCR packages must be public or the pull is unauthorized.
+Pull requests run the store lint (`node scripts/lint-store.mjs`) and build the four images without pushing them. There is no formatter and no typechecker in this repository, so CI does not run those. A push to `master` that changes an image source pushes the images to GHCR and commits digest pins into the compose files. That commit also bumps the app `version`, because a digest pin alone would not show up as an Umbrel update. The `ghcr.io/jonbeckman` tag in compose moves to the new version so the next pin still finds it. Until that commit lands, compose may name an image by tag with a `# pinned-by-ci` marker. The GHCR packages must be public or the pull is unauthorized.
 
 The workflow tries to mark the four packages public. If it cannot, open each package under GitHub → Packages and set the visibility to public. The Umbrel has no registry credentials.
 
 Base image digests in the Dockerfiles and compose files are pinned now. Our image digests are pinned by the workflow after the first green build on `master`.
 
-## Updates
+## How updates flow
 
-Umbrel offers an update when `version` in that app's `umbrel-app.yml` changes on `master`. A merge that does not change `version` does not update an install that is already there.
+Umbrel offers an app update only when `version` in that app's `umbrel-app.yml` changes on `master`. A weekly Umbrel routine, Sundays around 3 AM ET, installs the updates the Umbrel is showing. A merge that does not change `version` does not update an install that is already there.
 
-1. Merge the change.
-2. If the change touches an image, wait for the pin commit on `master`.
-3. Bump `version` and `releaseNotes` in `umbrel-app.yml` if the merge did not already. Keep the image tag in `docker-compose.yml` equal to that version when you want the next pin to match it.
-4. On the Umbrel, open the app and choose **Update**.
+Renovate opens a pull request when a third-party image (`koush/scrypted`, `grafana/alloy`, `docker`) or a GitHub Action changes. It does not edit `version`. The App version workflow does, on Renovate branches only:
 
-Renovate (`renovate.json`) opens pull requests for Docker base images, including `koush/scrypted`, and for GitHub Actions. Auto-merge is off. Review the digest, merge, and let the image workflow rebuild anything that `FROM`s that base. `koush/scrypted` is not built here, so a digest bump does not need the image workflow.
+- Compare the pull request with `master`. If a compose image ref changed, set `version` from the **master** version: one patch, or one minor (patch reset to 0) when an image's major or minor increased. A re-run sees that version already and does not bump again.
+- Set `releaseNotes` to the image change, and the version in the table above.
+- Run the store lint and publish `lint` and `version-bump` on that commit. A push with `GITHUB_TOKEN` does not start a new workflow, so the lint workflow would never see this commit. The checks are posted on the commit directly.
+
+Digest, patch, and minor updates carry the `automerge` label. The workflow arms GitHub auto-merge when those checks are green and there is no unresolved review thread, and no open "changes requested" review, from @jonbeckman, Bugbot (`cursor[bot]` or a login containing `bugbot`), or a lint/format bot. Major updates are labeled `major` and stay open. Resolving the last thread does not by itself wake the workflow; a new review or comment does.
+
+Images this repository builds are not Renovate's job. The Images workflow on `master` pushes them to GHCR, writes the digest into compose, and bumps that app's version in the same commit. That is the commit the Umbrel can see. `koush/scrypted` is not built here, so a Renovate digest bump does not need that workflow.
 
 ## What this was checked against
 

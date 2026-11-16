@@ -1,0 +1,166 @@
+name: App version
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+
+# A push made with this token does not start CI. This workflow runs the
+# store lint itself and publishes the lint and version-bump checks on the
+# commit it just pushed.
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: app-version-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            number="${{ github.event.issue.number }}"
+          else
+            number="${{ github.event.pull_request.number }}"
+          fi
+          gh api "repos/${{ github.repository }}/pulls/${number}" > pr.json
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(jq -r .head.sha pr.json)" >> "$GITHUB_OUTPUT"
+          echo "ref=$(jq -r .head.ref pr.json)" >> "$GITHUB_OUTPUT"
+          echo "repo=$(jq -r .head.repo.full_name pr.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Hold auto-merge until the version bump is on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jq -n --arg sha "${{ steps.pr.outputs.sha }}" \
+            '{name:"version-bump", head_sha:$sha, status:"in_progress", output:{title:"Version bump", summary:"Checking image updates against master."}}' \
+            | gh api --method POST "repos/${{ github.repository }}/check-runs" --input -
+
+      - name: Checkout pull request head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          ref: ${{ steps.pr.outputs.sha }}
+          repository: ${{ steps.pr.outputs.repo }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch master
+        run: git fetch origin master
+
+      - name: Bump app versions for Renovate image edits
+        id: bump
+        run: |
+          ref="${{ steps.pr.outputs.ref }}"
+          if [[ "${ref}" != renovate/* ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Not a Renovate branch."
+            exit 0
+          fi
+          node scripts/bump-for-image-updates.mjs --base origin/master
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md jonbeckman-*/docker-compose.yml jonbeckman-*/umbrel-app.yml
+          git commit -m "chore: bump app version for image update"
+          git push origin "HEAD:refs/heads/${ref}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Lint store
+        id: lint
+        if: success() && (steps.bump.outputs.changed == 'true' || startsWith(steps.pr.outputs.ref, 'renovate/'))
+        run: node scripts/lint-store.mjs
+
+      - name: Publish checks and auto-merge
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_REF: ${{ steps.pr.outputs.ref }}
+          BUMP_CHANGED: ${{ steps.bump.outputs.changed }}
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
+        run: |
+          set -eu
+          sha="$(git rev-parse HEAD)"
+          repo="${{ github.repository }}"
+          publish() {
+            name="$1"
+            conclusion="$2"
+            title="$3"
+            summary="$4"
+            jq -n --arg name "$name" --arg sha "$sha" --arg conclusion "$conclusion" --arg title "$title" --arg summary "$summary" \
+              '{name:$name, head_sha:$sha, status:"completed", conclusion:$conclusion, output:{title:$title, summary:$summary}}' \
+              | gh api --method POST "repos/${repo}/check-runs" --input -
+          }
+          if [[ "${HEAD_REF}" != renovate/* ]]; then
+            publish version-bump success "Version bump" "Not a Renovate branch. Nothing to bump."
+            exit 0
+          fi
+          if [[ "${LINT_OUTCOME}" != "success" ]]; then
+            publish lint failure "Lint store" "Store lint failed."
+            publish version-bump failure "Version bump" "Lint failed, so this commit cannot auto-merge."
+            gh pr merge "${PR_NUMBER}" --repo "${repo}" --disable-auto || true
+            exit 1
+          fi
+          # Stop a merge that Renovate already armed if a review comment is open.
+          gate_file="$(mktemp)"
+          gh api graphql -f query='
+            query($owner:String!, $name:String!, $number:Int!) {
+              repository(owner:$owner, name:$name) {
+                pullRequest(number:$number) {
+                  reviewThreads(first:100) {
+                    nodes { isResolved comments(first:1) { nodes { author { login } } } }
+                  }
+                  reviews(first:100) { nodes { state author { login } } }
+                }
+              }
+            }' -f owner="${repo%%/*}" -f name="${repo#*/}" -F number="${PR_NUMBER}" > "${gate_file}.raw"
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { reviewBlocks } from "./scripts/review-gate.mjs";
+            const raw = JSON.parse(readFileSync(process.argv[1], "utf8"));
+            const pr = raw.data.repository.pullRequest;
+            const reason = reviewBlocks({
+              threads: pr.reviewThreads.nodes.map((thread) => ({
+                isResolved: thread.isResolved,
+                author: thread.comments.nodes[0]?.author?.login ?? "",
+              })),
+              reviews: pr.reviews.nodes.map((review) => ({
+                state: review.state,
+                author: review.author?.login ?? "",
+              })),
+            });
+            writeFileSync(process.argv[2], reason);
+          ' "${gate_file}.raw" "${gate_file}"
+          reason="$(cat "${gate_file}")"
+          labels="$(gh pr view "${PR_NUMBER}" --repo "${repo}" --json labels --jq "[.labels[].name] | join(\",\")")"
+          eligible=true
+          if [[ "${labels}" != *automerge* || "${labels}" == *major* || -n "${reason}" ]]; then
+            eligible=false
+            echo "Auto-merge held. labels=${labels} ${reason}"
+            gh pr merge "${PR_NUMBER}" --repo "${repo}" --disable-auto || true
+          fi
+          publish lint success "Lint store" "Store lint passed."
+          publish version-bump success "Version bump" "App versions match the image diff against master."
+          if [[ "${eligible}" != true ]]; then
+            exit 0
+          fi
+          gh pr merge "${PR_NUMBER}" --repo "${repo}" --squash --auto \
+            || echo "Could not arm auto-merge. Allow auto-merge in the repository settings."

@@ -7,10 +7,20 @@
   "commitMessagePrefix": "chore(deps):",
   "packageRules": [
     {
-      "description": "Base images need a reviewed merge. Never auto-merge them. koush/scrypted in jonbeckman-scrypted/docker-compose.yml is one of these.",
+      "description": "Digest, patch, and minor image updates auto-merge after the app version bump and lint. The App version workflow merges the PR only when those checks are green and no review thread from jonbeckman, Bugbot, or a lint/format bot is open. platformAutomerge arms GitHub auto-merge; branch protection must require the version-bump check so this cannot merge before that bump commit.",
       "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest", "patch", "minor", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "addLabels": ["automerge", "base-image"]
+    },
+    {
+      "description": "Major image updates stay for a person to merge.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
-      "addLabels": ["base-image"]
+      "addLabels": ["major", "base-image"]
     },
     {
       "description": "Images this repo builds are pinned by CI, not by Renovate.",
@@ -23,10 +33,20 @@
       "enabled": false
     },
     {
-      "description": "Action bumps arrive as PRs and wait for review.",
+      "description": "Action digest, patch, and minor updates auto-merge on the same terms as image updates. They do not change an app version.",
       "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["digest", "patch", "minor", "pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "addLabels": ["automerge", "github-actions"]
+    },
+    {
+      "description": "Major GitHub Action updates stay for a person to merge.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
-      "addLabels": ["github-actions"]
+      "addLabels": ["major", "github-actions"]
     }
   ]
 }
