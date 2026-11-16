@@ -23,7 +23,7 @@ Open that store from the same menu and install an app the same way as an officia
 | GitHub Runner | `jonbeckman-github-runner` | 0.1.3 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
 | Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.4 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 | Cursor Worker | `jonbeckman-cursor-worker` | 0.1.1 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
-| Scrypted | `jonbeckman-scrypted` | 0.1.1 | 3503 | Home video and HomeKit. Host network so `_hap._tcp` reaches the LAN. HTTP is 11081, HTTPS is 11443. |
+| Scrypted | `jonbeckman-scrypted` | 0.1.2 | 3503 | Home video and HomeKit. Host network so `_hap._tcp` reaches the LAN. HTTP is 11081, HTTPS is 11443. |
 
 GitHub Runner, Grafana Alloy, and Cursor Worker keep their pages on the Umbrel Docker network. Those pages are behind the Umbrel login (`PROXY_AUTH_ADD`). Scrypted uses the host network, so its process listens on the host; the tile on 3503 is still behind the Umbrel login.
 
@@ -146,7 +146,7 @@ The image config is `ENTRYPOINT ["/init"]` and `CMD ["/bin/sh", "-c", "ulimit -c
 
 `SCRYPTED_DOCKER_AVAHI` is unset. Upstream's host-network option starts a second avahi and tells you to stop the host daemon. That daemon publishes `umbrel.local`. HomeKit's own advertiser publishes `_hap._tcp` on the host network.
 
-Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both apps, delete the empty database this app created on first start, add a read-only custom folder on service `server` at `/import` whose folder is `/Apps/denny-scrypted/data/scrypted`, then start this app. The copy runs only when this volume has no `scrypted.db/CURRENT` and `/import` has one. The source is not modified. Scrypted's migration doc treats a `volume` directory copy as the move from an older install, including v0.122.0; set **Scrypted Server Address** to this Umbrel's LAN address afterward.
+Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both apps, delete the empty database this app created on first start, copy Denny's volume to `/Home/scrypted-import-from-denny/scrypted` (Umbrel rejects a custom mount under `/Apps`), add a read-only custom folder on service `server` at `/import` whose folder is that Home path, then start this app. The copy runs only when this volume has no `scrypted.db/CURRENT` and `/import` has one. The source is not modified. Scrypted's migration doc treats a `volume` directory copy as the move from an older install, including v0.122.0; set **Scrypted Server Address** to this Umbrel's LAN address afterward.
 
 ## Images
 
@@ -215,4 +215,4 @@ What that code does that matters here:
 
 CI lints the store and does not start umbrelOS. Still unchecked on the NUC: installing the store, Umbrel login in front of the setup pages, a privileged `dind` job, whether `prometheus.exporter.cadvisor` returns useful numbers without a privileged Alloy container, whether Alloy accepts the unconfigured config and the OTLP receivers at stability `generally-available`, the real tester-army e2e binary honoring an absolute `E2E_CACHE_DIR`, GHCR packages actually being public, Alloy staying under 192 MB resident and the setup container staying under 96 MB, and whether the Cursor worker connects with a personal API key and clones the private repositories. The worker image does build, and `agent worker --help` on that image matches the flags this app passes.
 
-Also unchecked on the NUC: installing Scrypted, the Umbrel login in front of port 3503, HomeKit `_hap._tcp` showing up on a Mac after the move, whether the HomeKit advertiser and the host `avahi-daemon` can both hold UDP 5353, opening a v0.122.0 `scrypted.db` in v0.148.0, and the custom-folder screen accepting `/Apps/denny-scrypted/data/scrypted` as the `/import` source. The image digest was read from the registry; the container was not started here.
+Also unchecked on the NUC: installing Scrypted, the Umbrel login in front of port 3503, HomeKit `_hap._tcp` showing up on a Mac after the move, whether the HomeKit advertiser and the host `avahi-daemon` can both hold UDP 5353, opening a v0.122.0 `scrypted.db` in v0.148.0, and the custom-folder screen accepting `/Home/scrypted-import-from-denny/scrypted` as the `/import` source. `/Apps` is not a valid custom-mount source. The image digest was read from the registry; the container was not started here.
