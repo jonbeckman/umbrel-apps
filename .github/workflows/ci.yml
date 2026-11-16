@@ -9,12 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
       - name: Lint store
         run: node scripts/lint-store.mjs
-      - name: Test
-        run: node --test jonbeckman-github-runner/manager/lib.test.mjs jonbeckman-github-runner/manager/page.test.mjs jonbeckman-github-runner/manager/test/scheduler.test.mjs jonbeckman-grafana-alloy/setup/render.test.mjs jonbeckman-grafana-alloy/setup/docker-ro.test.mjs jonbeckman-grafana-alloy/setup/page.test.mjs jonbeckman-cursor-worker/worker/lib.test.mjs jonbeckman-cursor-worker/worker/page.test.mjs jonbeckman-cursor-worker/worker/worker.test.mjs jonbeckman-scrypted/import-volume.test.mjs

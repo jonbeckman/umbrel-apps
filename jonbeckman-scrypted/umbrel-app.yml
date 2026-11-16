@@ -3,7 +3,7 @@ id: jonbeckman-scrypted
 name: Scrypted
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-scrypted/icon.svg
 category: automation
-version: "0.1.0"
+version: "0.1.1"
 tagline: Home video and HomeKit, on the host network
 description: >-
   Scrypted on this Umbrel, using the host network so HomeKit mDNS
@@ -26,8 +26,10 @@ description: >-
   source. The steps, including clearing an empty database created by an
   earlier start, are in the app README.
 releaseNotes: >-
-  First release. Host networking for HomeKit, HTTP on 11081 so denny-scrypted
-  can keep 11080, and a one-time read-only import from /import.
+  The import wrapper now passes Scrypted's image command to /init. Compose
+  drops an image CMD when entrypoint is set, so the server service sets
+  command explicitly. The wrapper lives in hooks so install and update
+  both copy it into the app data directory.
 developer: Scrypted
 website: https://www.scrypted.app/
 dependencies: []

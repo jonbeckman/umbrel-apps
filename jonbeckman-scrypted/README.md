@@ -23,11 +23,20 @@ Scrypted's HomeKit plugin advertises `_hap._tcp` with mDNS. On Umbrel's Docker b
 
 3503 and 11081 are different on purpose. With an `app_proxy` block, umbreld binds `127.0.0.1` on the tile port. Scrypted binds its HTTP port on every address, including `127.0.0.1`. Using one number for both would make those two binds fight.
 
+## How the container starts
+
+The image's config is `ENTRYPOINT ["/init"]` and `CMD ["/bin/sh", "-c", "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"]`. Compose drops that CMD when a service sets `entrypoint` and does not set `command`, and `/init` with no arguments does not start Scrypted. This app sets `command` to that same argv. `hooks/import-volume.sh` is the entrypoint; after the import it runs `/init` with those arguments. If the arguments are missing, the script uses the image CMD itself.
+
+The script is on disk at runtime because umbrelOS copies the app folder into the app data directory:
+
+- Install: `packages/umbreld/source/modules/apps/apps.ts` `#install` runs `rsync --archive` from the app template into `${dataDirectory}/app-data/<id>`. `--archive` keeps the executable bit. `APP_DATA_DIR` is that directory (`legacy-compat/app-script`).
+- Update: the same app script's `copy_app_files` whitelist is `docker-compose.yml`, templates, `exports.sh`, `torrc`, `hooks`, then `umbrel-app.yml`. A script left at the app root would stay at the old contents. `hooks/import-volume.sh` is copied again on update and mounted at `/import-volume.sh`.
+
 ## Import the existing database
 
 The directory Denny mounts at `/server/volume` is the Files path `/Apps/denny-scrypted/data/scrypted`. It contains `scrypted.db` (LevelDB, with a `CURRENT` file) plus plugins and settings. This app mounts its own `data/scrypted` at `/server/volume`.
 
-The copy runs inside the `server` container, before Scrypted starts:
+The copy is `hooks/import-volume.sh`, mounted at `/import-volume.sh`, and it runs before `/init`:
 
 - No `/import` directory: Scrypted starts with this app's volume. Nothing is copied.
 - `/import/scrypted.db/CURRENT` is missing: nothing is copied.
