@@ -1,0 +1,44 @@
+manifestVersion: 1.1
+id: jonbeckman-scrypted
+name: Scrypted
+icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-scrypted/icon.svg
+category: automation
+version: "0.1.0"
+tagline: Home video and HomeKit, on the host network
+description: >-
+  Scrypted on this Umbrel, using the host network so HomeKit mDNS
+  (_hap._tcp) reaches the LAN. The image is koush/scrypted
+  v0.148.0-noble-full. Cameras, plugins, and settings live in
+  data/scrypted, mounted at /server/volume.
+
+
+  Denny's Scrypted app can stay installed while you switch. It holds host
+  port 11080, so this app's HTTP port is 11081 and its HTTPS port is
+  11443. The Umbrel tile is port 3503 and stays behind the Umbrel login.
+  Opening the tile is the authenticated way in. 11081 and 11443 are also
+  listening on the host, and Scrypted's own login applies there.
+
+
+  To bring over an existing install, stop denny-scrypted, then add one
+  read-only custom folder on service server at /import pointing at
+  /Apps/denny-scrypted/data/scrypted. The first start that sees that
+  mount, and no scrypted.db yet, copies the files and does not change the
+  source. The steps, including clearing an empty database created by an
+  earlier start, are in the app README.
+releaseNotes: >-
+  First release. Host networking for HomeKit, HTTP on 11081 so denny-scrypted
+  can keep 11080, and a one-time read-only import from /import.
+developer: Scrypted
+website: https://www.scrypted.app/
+dependencies: []
+repo: https://github.com/koush/scrypted
+support: https://github.com/koush/scrypted/issues
+port: 3503
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: jonbeckman
+submission: https://github.com/jonbeckman/umbrel-apps

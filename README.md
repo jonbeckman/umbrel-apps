@@ -23,8 +23,9 @@ Open that store from the same menu and install an app the same way as an officia
 | GitHub Runner | `jonbeckman-github-runner` | 0.1.2 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
 | Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.3 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 | Cursor Worker | `jonbeckman-cursor-worker` | 0.1.0 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
+| Scrypted | `jonbeckman-scrypted` | 0.1.0 | 3503 | Home video and HomeKit. Host network so `_hap._tcp` reaches the LAN. HTTP is 11081, HTTPS is 11443. |
 
-None of the apps publish a host port. The setup pages are behind the Umbrel login (`PROXY_AUTH_ADD`).
+GitHub Runner, Grafana Alloy, and Cursor Worker keep their pages on the Umbrel Docker network. Those pages are behind the Umbrel login (`PROXY_AUTH_ADD`). Scrypted uses the host network, so its process listens on the host; the tile on 3503 is still behind the Umbrel login.
 
 ### GitHub Runner
 
@@ -135,6 +136,16 @@ The first checkout that clones successfully is the primary repository Cursor sho
 
 The container runs as uid 1001, memory cap 2048 MB, no Docker socket, no privileged mode. Outbound HTTPS is required to `api2.cursor.sh`, `api2direct.cursor.sh`, `downloads.cursor.com`, `agent-stores.s3.us-east-1.amazonaws.com`, `cloud-agent-artifacts.s3.us-east-1.amazonaws.com`, `github.com`, and `api.github.com`. Nothing inbound is published. `gh` is installed and is not logged in. Git commit name and email are not set. Live workspace (`--connect-workspace`) is off.
 
+### Scrypted
+
+`koush/scrypted:v0.148.0-noble-full`, digest-pinned. Ubuntu Noble is the current `-full` tag and is newer than the Jammy tag on `denny-scrypted` (`v0.122.0-jammy-full`). The container uses `network_mode: host`, a 4 GB memory limit, `cpu_shares: 768`, and `no-new-privileges`. Data is `${APP_DATA_DIR}/data/scrypted` mounted at `/server/volume`.
+
+HTTP is `SCRYPTED_INSECURE_PORT=11081` so it does not take Denny's app proxy port 11080. HTTPS is `SCRYPTED_SECURE_PORT=11443`. The debug port stays at the image default, 10081. The Umbrel tile is port 3503. `app_proxy` sets `APP_HOST: 127.0.0.1`, `APP_PORT: 11081`, and `PROXY_AUTH_ADD: "true"`. umbrelOS 2 reads that block from the host gateway (`readAppGatewayConfig` in getumbrel/umbrel). A host-network container has no address on `umbrel_main_network`, so the gateway uses `127.0.0.1`. The tile port is not 11081 because that gateway also binds `127.0.0.1` on the tile port (`ensureAppLoopbackServer`).
+
+`SCRYPTED_DOCKER_AVAHI` is unset. Upstream's host-network option starts a second avahi and tells you to stop the host daemon. That daemon publishes `umbrel.local`. HomeKit's own advertiser publishes `_hap._tcp` on the host network.
+
+Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both apps, delete the empty database this app created on first start, add a read-only custom folder on service `server` at `/import` whose folder is `/Apps/denny-scrypted/data/scrypted`, then start this app. The copy runs only when this volume has no `scrypted.db/CURRENT` and `/import` has one. The source is not modified. Scrypted's migration doc treats a `volume` directory copy as the move from an older install, including v0.122.0; set **Scrypted Server Address** to this Umbrel's LAN address afterward.
+
 ## Images
 
 | Image | Built here | Base |
@@ -145,6 +156,7 @@ The container runs as uid 1001, memory cap 2048 MB, no Docker socket, no privile
 | `ghcr.io/jonbeckman/cursor-worker` | yes | `ubuntu:24.04` and `node:24.15.0-bookworm-slim` |
 | `docker:29.9.1-dind` | no | Docker official |
 | `grafana/alloy:v1.21.0` | no | Grafana official |
+| `koush/scrypted:v0.148.0-noble-full` | no | Scrypted official |
 
 Built images are `linux/amd64` only. The NUC is x86_64, and the Nub archive pinned in the runner Dockerfile is `nub-linux-x64`.
 
@@ -163,12 +175,14 @@ Umbrel offers an update when `version` in that app's `umbrel-app.yml` changes on
 3. Bump `version` and `releaseNotes` in `umbrel-app.yml` if the merge did not already. Keep the image tag in `docker-compose.yml` equal to that version when you want the next pin to match it.
 4. On the Umbrel, open the app and choose **Update**.
 
-Renovate (`renovate.json`) opens pull requests for Docker base images and GitHub Actions. Auto-merge is off. Review the digest, merge, and let the image workflow rebuild anything that `FROM`s that base.
+Renovate (`renovate.json`) opens pull requests for Docker base images, including `koush/scrypted`, and for GitHub Actions. Auto-merge is off. Review the digest, merge, and let the image workflow rebuild anything that `FROM`s that base. `koush/scrypted` is not built here, so a digest bump does not need the image workflow.
 
 ## What this was checked against
 
 - [getumbrel/umbrel-community-app-store](https://github.com/getumbrel/umbrel-community-app-store): `umbrel-app-store.yml` (`id`, `name`) and app directories prefixed with that id.
-- umbrelOS manifest handling in `getumbrel/umbrel` (`schema.ts`, app install script): `manifestVersion` is a semantic version and must be less than or equal to the running umbrelOS (2.0.0 here, so `1.1` is fine). Updates copy `docker-compose.yml`, `exports.sh`, `hooks`, and then `umbrel-app.yml`. `app_proxy` uses `APP_HOST` of the form `<app-id>_<service>_1`.
+- umbrelOS manifest handling in `getumbrel/umbrel` (`schema.ts`, app install script): `manifestVersion` is a semantic version and must be less than or equal to the running umbrelOS (2.0.0 here, so `1.1` is fine). Updates copy `docker-compose.yml`, `exports.sh`, `hooks`, and then `umbrel-app.yml`. `app_proxy` uses `APP_HOST` of the form `<app-id>_<service>_1` for a container on the Umbrel network. For a `network_mode: host` service, umbrelOS 2's gateway runs on the host (`readAppGatewayConfig`, `resolveAppTarget`): an IP is used as-is, so `APP_HOST` is `127.0.0.1`. `ensureAppLoopbackServer` binds that same host on the manifest `port`, which is why Scrypted's tile port (3503) and its HTTP port (11081) differ. Home Assistant in `getumbrel/umbrel-apps` is the host-network app with no `app_proxy` block, so it has no Umbrel login. This app keeps the block and `PROXY_AUTH_ADD: "true"`.
+- Scrypted `server/src/server-settings.ts`: `SCRYPTED_INSECURE_PORT` (default 11080), `SCRYPTED_SECURE_PORT` (default 10443), `SCRYPTED_DEBUG_PORT` (default 10081). The database path is `/server/volume/scrypted.db` (`scrypted-server-main.ts`). The image entrypoint is `/init` and curl is installed (`koush/scrypted:v0.148.0-noble-full` config).
+- Scrypted migration doc (`docs.scrypted.app/maintenance/migration.html`): copying the volume directory is the database move onto another install. Docker install docs: HomeKit uses host networking. Upstream compose: `SCRYPTED_DOCKER_AVAHI=true` on host networking requires stopping the host avahi daemon.
 - Nub 0.9.6 docs and the published `nub-linux-x64.tar.gz.sha256` (`77220dc6deb6ebbdb0a282c61b80a157e32016e088f3632d8fb4bf74a931e4ce`), confirmed by running the binary.
 - `nubjs/setup-nub` `v0.6.0` `action.yml`: an exact nub version already at `$RUNNER_TOOL_CACHE/nub/<version>/$RUNNER_ARCH/bin/nub` is reused.
 - tester-army e2e docs: replay files live under `.e2e/cache` or `E2E_CACHE_DIR`; browser binaries follow Playwright's `PLAYWRIGHT_BROWSERS_PATH`.
@@ -194,3 +208,5 @@ What that code does that matters here:
 ## Not checked on an Umbrel
 
 This repository's tests do not start umbrelOS. Still unchecked on the NUC: installing the store, Umbrel login in front of the setup pages, a privileged `dind` job, whether `prometheus.exporter.cadvisor` returns useful numbers without a privileged Alloy container, whether Alloy accepts the unconfigured config and the OTLP receivers at stability `generally-available`, the real tester-army e2e binary honoring an absolute `E2E_CACHE_DIR`, GHCR packages actually being public, Alloy staying under 192 MB resident and the setup container staying under 96 MB, and whether the Cursor worker connects with a personal API key and clones the private repositories. The worker image does build, and `agent worker --help` on that image matches the flags this app passes.
+
+Also unchecked on the NUC: installing Scrypted, the Umbrel login in front of port 3503, HomeKit `_hap._tcp` showing up on a Mac after the move, whether the HomeKit advertiser and the host `avahi-daemon` can both hold UDP 5353, opening a v0.122.0 `scrypted.db` in v0.148.0, and the custom-folder screen accepting `/Apps/denny-scrypted/data/scrypted` as the `/import` source. The import script is covered by `jonbeckman-scrypted/import-volume.test.mjs`. The image digest was read from the registry; the container was not started here.
