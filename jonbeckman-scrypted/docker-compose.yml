@@ -22,7 +22,13 @@ services:
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 30s
+    # Setting entrypoint drops the image CMD. The command below is the image
+    # CMD from koush/scrypted:v0.148.0-noble-full (amd64 config blob
+    # sha256:22c17b949a68b3a79e7cfb6e8d814a789a2f18d054db3c1ff27231115ad27d36):
+    # ENTRYPOINT ["/init"], CMD ["/bin/sh", "-c", "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"].
+    # import-volume.sh execs /init with these arguments.
     entrypoint: ["/bin/sh", "/import-volume.sh"]
+    command: ["/bin/sh", "-c", "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"]
     environment:
       # Confirmed in koush/scrypted server/src/server-settings.ts.
       # 11080 is denny-scrypted's app_proxy port and stays free for that app.
@@ -30,7 +36,8 @@ services:
       SCRYPTED_SECURE_PORT: "11443"
     volumes:
       - ${APP_DATA_DIR}/data/scrypted:/server/volume
-      - ${APP_DATA_DIR}/import-volume.sh:/import-volume.sh:ro
+      # hooks/ is copied on install (whole app folder) and on update (whitelist).
+      - ${APP_DATA_DIR}/hooks/import-volume.sh:/import-volume.sh:ro
     # Host networking has no published port for Umbrel to probe. curl is
     # installed in this image. 302 from / is a healthy response; -f fails
     # only on HTTP 400 and above, or when nothing is listening.

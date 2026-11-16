@@ -1,7 +1,48 @@
 // Check the community store layout without extra dependencies.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
+// Compose drops an image CMD when entrypoint is set and command is not.
+// Returns the service names that set entrypoint without command.
+export function servicesMissingCommand(compose) {
+  const missing = [];
+  let inServices = false;
+  let service = '';
+  let hasEntrypoint = false;
+  let hasCommand = false;
+  const flush = () => {
+    if (service && hasEntrypoint && !hasCommand) missing.push(service);
+  };
+  for (const line of compose.split('\n')) {
+    if (/^\s*#/.test(line) || line.trim() === '') continue;
+    const indent = line.match(/^ */)?.[0].length ?? 0;
+    if (!inServices) {
+      if (/^services:\s*$/.test(line)) inServices = true;
+      continue;
+    }
+    if (indent === 0) {
+      flush();
+      inServices = false;
+      service = '';
+      continue;
+    }
+    if (indent === 2 && /^\s+\S+:\s*$/.test(line)) {
+      flush();
+      service = line.trim().replace(/:$/, '');
+      hasEntrypoint = false;
+      hasCommand = false;
+      continue;
+    }
+    if (!service || indent < 4) continue;
+    if (/^\s+entrypoint:/.test(line)) hasEntrypoint = true;
+    if (/^\s+command:/.test(line)) hasCommand = true;
+  }
+  flush();
+  return missing;
+}
+
+function main() {
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const errors = [];
 const fail = (msg) => errors.push(msg);
@@ -43,6 +84,9 @@ for (const id of apps()) {
   const appHostOnHost = hostNetwork && /APP_HOST:\s*127\.0\.0\.1\b/.test(compose);
   if (!appHostByName && !appHostOnHost) fail(`${id}: app_proxy APP_HOST does not use the app id or 127.0.0.1`);
   if (!/PROXY_AUTH_ADD:\s*"true"/.test(compose)) fail(`${id}: app_proxy is not behind Umbrel auth`);
+  for (const service of servicesMissingCommand(compose)) {
+    fail(`${id}: service ${service} sets entrypoint without command`);
+  }
   const lines = compose.split('\n');
   lines.forEach((line, i) => {
     const image = line.match(/^\s*(?:image:|RUNNER_IMAGE:)\s*(\S+)/)?.[1];
@@ -96,3 +140,7 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(`store ${storeId} (${storeName}); apps: ${apps().join(', ')}`);
+}
+
+const isDirect = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (isDirect) main();

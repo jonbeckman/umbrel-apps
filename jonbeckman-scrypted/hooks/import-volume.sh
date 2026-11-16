@@ -70,8 +70,21 @@ import_volume() {
 
 import_volume
 
+# koush/scrypted:v0.148.0-noble-full config: ENTRYPOINT ["/init"],
+# CMD ["/bin/sh", "-c", "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"].
+# Compose drops the image CMD when entrypoint is overridden, so the compose
+# file sets command to that same argv. If it is missing, use it here too.
+init="${SCRYPTED_INIT:-/init}"
+if [ "$#" -eq 0 ]; then
+  log "no command arguments; using the image CMD"
+  set -- /bin/sh -c "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"
+fi
+
 if [ "${SCRYPTED_IMPORT_ONLY:-}" = "1" ]; then
+  if [ -n "${SCRYPTED_EXEC_LOG:-}" ]; then
+    printf '%s\0' "$init" "$@" > "$SCRYPTED_EXEC_LOG"
+  fi
   exit 0
 fi
 
-exec /init "$@"
+exec "$init" "$@"

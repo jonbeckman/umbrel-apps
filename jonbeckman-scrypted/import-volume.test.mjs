@@ -6,7 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'import-volume.sh');
+const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'hooks', 'import-volume.sh');
+const imageCmd = ['/bin/sh', '-c', 'ulimit -c 0; exec npm --prefix /server exec scrypted-serve'];
 
 function run(volume, importDir) {
   return execFileSync('/bin/sh', [script], {
@@ -108,4 +109,44 @@ test('a retry after a staged database finishes the import', () => {
   assert.equal(text(path.join(volume, 'scrypted.db', 'CURRENT')), 'MANIFEST-000001\n');
   assert.equal(existsSync(path.join(volume, '.import-staging')), false);
   rmSync(root, { recursive: true, force: true });
+});
+
+function execRecord(args) {
+  const root = mkdtempSync(path.join(tmpdir(), 'scrypted-exec-'));
+  const log = path.join(root, 'exec');
+  execFileSync('/bin/sh', [script, ...args], {
+    env: {
+      ...process.env,
+      SCRYPTED_IMPORT_ONLY: '1',
+      SCRYPTED_VOLUME: path.join(root, 'volume'),
+      SCRYPTED_IMPORT: path.join(root, 'missing'),
+      SCRYPTED_INIT: '/init',
+      SCRYPTED_EXEC_LOG: log,
+    },
+  });
+  const recorded = readFileSync(log);
+  const parts = [];
+  let start = 0;
+  for (let i = 0; i < recorded.length; i += 1) {
+    if (recorded[i] !== 0) continue;
+    parts.push(recorded.subarray(start, i).toString('utf8'));
+    start = i + 1;
+  }
+  rmSync(root, { recursive: true, force: true });
+  return parts;
+}
+
+test('no compose command still execs /init with the image CMD', () => {
+  assert.deepEqual(execRecord([]), ['/init', ...imageCmd]);
+});
+
+test('compose command arguments are forwarded to /init', () => {
+  assert.deepEqual(execRecord(imageCmd), ['/init', ...imageCmd]);
+});
+
+test('compose sets command to the image CMD when entrypoint is overridden', () => {
+  const compose = readFileSync(path.join(path.dirname(script), '..', 'docker-compose.yml'), 'utf8');
+  const command = compose.match(/^\s*command:\s*(\[.*\])\s*$/m)?.[1];
+  assert.deepEqual(JSON.parse(command), imageCmd);
+  assert.match(compose, /entrypoint:\s*\["\/bin\/sh", "\/import-volume\.sh"\]/);
 });
