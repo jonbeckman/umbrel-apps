@@ -9,7 +9,7 @@ services:
   # proxy. The host socket is mounted only here. Alloy talks to the proxy.
   setup:
     # pinned-by-ci: the image workflow on master replaces this tag with a digest.
-    image: ghcr.io/jonbeckman/grafana-alloy-setup:0.1.3@sha256:b0956634c2ae6fdc3b729472190df55b200359eedd79f1138bc698984e3d548c
+    image: ghcr.io/jonbeckman/grafana-alloy-setup:0.1.4@sha256:38aa528afc6e64a0ac5473da4ed4c96f4f64a0028a439181b72fef232d22f91e
     restart: unless-stopped
     init: true
     mem_limit: 96m

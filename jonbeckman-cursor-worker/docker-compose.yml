@@ -10,7 +10,7 @@ services:
   # The personal API key is read from the state file, not from this file.
   worker:
     # pinned-by-ci: the image workflow on master replaces this tag with a digest.
-    image: ghcr.io/jonbeckman/cursor-worker:0.1.0@sha256:2ca5c9cca7a19a6e6a51fa7709a1d93c82ec516df4c24346202dbea94f12d45a
+    image: ghcr.io/jonbeckman/cursor-worker:0.1.1@sha256:3f41c081239dd2663ff9e3486f2c2068930e0329941b50e42d14b21c19cce01c
     restart: unless-stopped
     init: true
     user: "1001:1001"

@@ -3,7 +3,7 @@ id: jonbeckman-cursor-worker
 name: Cursor Worker
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-cursor-worker/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.1"
 tagline: Cursor cloud agents on this Umbrel, in My Machines mode
 description: >-
   Runs Cursor's self-hosted cloud agent worker on this Umbrel so agents
@@ -46,9 +46,7 @@ description: >-
   The first checkout that was prepared is the machine's primary
   repository.
 releaseNotes: >-
-  First release. A My Machines worker named umbrel, with a setup page for
-  the personal Cursor API key, per-owner GitHub tokens, and the
-  repository list.
+  Image update: ghcr.io/jonbeckman/cursor-worker 0.1.0 (2ca5c9cca7a1) -> 0.1.0 (3f41c081239d).
 developer: Jonathan Beckman
 website: https://github.com/jonbeckman/umbrel-apps
 dependencies: []

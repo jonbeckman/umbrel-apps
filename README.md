@@ -20,9 +20,9 @@ Open that store from the same menu and install an app the same way as an officia
 
 | App | ID | Version | Port | What it does |
 | --- | --- | --- | --- | --- |
-| GitHub Runner | `jonbeckman-github-runner` | 0.1.2 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
-| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.3 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
-| Cursor Worker | `jonbeckman-cursor-worker` | 0.1.0 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
+| GitHub Runner | `jonbeckman-github-runner` | 0.1.3 | 3500 | Self-hosted Actions runners for private repositories. One fresh container per job, inside a Docker daemon private to the app. |
+| Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.4 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
+| Cursor Worker | `jonbeckman-cursor-worker` | 0.1.1 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
 | Scrypted | `jonbeckman-scrypted` | 0.1.1 | 3503 | Home video and HomeKit. Host network so `_hap._tcp` reaches the LAN. HTTP is 11081, HTTPS is 11443. |
 
 GitHub Runner, Grafana Alloy, and Cursor Worker keep their pages on the Umbrel Docker network. Those pages are behind the Umbrel login (`PROXY_AUTH_ADD`). Scrypted uses the host network, so its process listens on the host; the tile on 3503 is still behind the Umbrel login.

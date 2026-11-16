@@ -3,7 +3,7 @@ id: jonbeckman-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-github-runner/icon.svg
 category: developer
-version: "0.1.2"
+version: "0.1.3"
 tagline: Self-hosted Actions runners for Jonathan's private repositories
 description: >-
   Runs GitHub Actions jobs for the private repositories you list, on this
@@ -82,9 +82,7 @@ description: >-
   JIT config. Before uninstalling, use "Remove runners from GitHub" and
   revoke the tokens.
 releaseNotes: >-
-  The setup page accepts Umbrel's app gateway on umbrelOS 2. That gateway
-  is the host, not a proxy container. A missing container name is logged
-  once, not on every health check.
+  Image update: ghcr.io/jonbeckman/github-runner-image 0.1.2 (ae2ee14788f9) -> 0.1.2 (dcac6365b9f5); ghcr.io/jonbeckman/github-runner-manager 0.1.2 (d7ff5f8ab902) -> 0.1.2 (192dd7e93b11).
 developer: Jonathan Beckman
 website: https://github.com/jonbeckman/umbrel-apps
 dependencies: []
