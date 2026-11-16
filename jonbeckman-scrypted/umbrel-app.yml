@@ -3,7 +3,7 @@ id: jonbeckman-scrypted
 name: Scrypted
 icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-scrypted/icon.svg
 category: automation
-version: "0.1.1"
+version: "0.1.2"
 tagline: Home video and HomeKit, on the host network
 description: >-
   Scrypted on this Umbrel, using the host network so HomeKit mDNS
@@ -19,17 +19,24 @@ description: >-
   listening on the host, and Scrypted's own login applies there.
 
 
-  To bring over an existing install, stop denny-scrypted, then add one
-  read-only custom folder on service server at /import pointing at
-  /Apps/denny-scrypted/data/scrypted. The first start that sees that
-  mount, and no scrypted.db yet, copies the files and does not change the
-  source. The steps, including clearing an empty database created by an
-  earlier start, are in the app README.
+  To bring over an existing install, copy Denny's Scrypted volume to
+  /Home/scrypted-import-from-denny/scrypted. Umbrel rejects a custom mount
+  whose source is under /Apps. Then add one read-only custom folder on
+  service server at /import pointing at that Home folder. The first start
+  that sees that mount, and no scrypted.db yet, copies the files and does
+  not change the source. The steps, including clearing an empty database
+  created by an earlier start, are in the app README.
+
+
+  Node is started with --insecure-http-parser so Amcrest cameras on
+  Scrypted v0.148.0 can complete digest authentication and the event
+  stream. Without it, snapshots abort and the prebuffer never syncs.
 releaseNotes: >-
-  The import wrapper now passes Scrypted's image command to /init. Compose
-  drops an image CMD when entrypoint is set, so the server service sets
-  command explicitly. The wrapper lives in hooks so install and update
-  both copy it into the app data directory.
+  Node uses --insecure-http-parser so the Amcrest plugin can read the
+  camera's digest-auth 401 replies and event stream on Scrypted v0.148.0.
+  Import the old volume from a folder under /Home, such as
+  /Home/scrypted-import-from-denny/scrypted. Umbrel rejects /Apps as a
+  custom mount source.
 developer: Scrypted
 website: https://www.scrypted.app/
 dependencies: []
