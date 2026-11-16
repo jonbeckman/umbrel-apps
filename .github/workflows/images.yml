@@ -117,12 +117,15 @@ jobs:
             "github-runner-image=${{ steps.runner.outputs.digest }}" \
             "grafana-alloy-setup=${{ steps.setup.outputs.digest }}" \
             "cursor-worker=${{ steps.cursor.outputs.digest }}"
+          # A digest-only commit does not change umbrel-app.yml version, so
+          # the Umbrel would not offer it. Bump from this commit (HEAD) once.
+          node scripts/bump-for-image-updates.mjs --base HEAD
           if git diff --quiet; then
             echo "Compose files already pinned."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add jonbeckman-github-runner/docker-compose.yml jonbeckman-grafana-alloy/docker-compose.yml jonbeckman-cursor-worker/docker-compose.yml
-          git commit -m "chore: pin app image digests"
+          git add README.md jonbeckman-*/docker-compose.yml jonbeckman-*/umbrel-app.yml
+          git commit -m "chore: pin app image digests and bump app versions"
           git push origin master
