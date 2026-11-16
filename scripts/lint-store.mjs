@@ -35,7 +35,13 @@ for (const id of apps()) {
   if (version !== '1' && version !== '1.1') fail(`${id}: manifestVersion ${version} is not 1 or 1.1`);
   const compose = readFileSync(path.join(dir, 'docker-compose.yml'), 'utf8');
   if (/^\s*ports:/m.test(compose)) fail(`${id}: compose publishes ports`);
-  if (!compose.includes(`APP_HOST: ${id}_`)) fail(`${id}: app_proxy APP_HOST does not use the app id`);
+  // Bridge apps are reached by container name. A host-network app has no
+  // address on umbrel_main_network; umbrelOS 2's gateway runs on the host
+  // and uses 127.0.0.1 (see getumbrel/umbrel lan-ingress resolveAppTarget).
+  const hostNetwork = /network_mode:\s*["']?host["']?/.test(compose);
+  const appHostByName = compose.includes(`APP_HOST: ${id}_`);
+  const appHostOnHost = hostNetwork && /APP_HOST:\s*127\.0\.0\.1\b/.test(compose);
+  if (!appHostByName && !appHostOnHost) fail(`${id}: app_proxy APP_HOST does not use the app id or 127.0.0.1`);
   if (!/PROXY_AUTH_ADD:\s*"true"/.test(compose)) fail(`${id}: app_proxy is not behind Umbrel auth`);
   const lines = compose.split('\n');
   lines.forEach((line, i) => {
@@ -50,7 +56,7 @@ for (const id of apps()) {
     const slash = bare.lastIndexOf('/');
     const colon = bare.indexOf(':', slash + 1);
     const name = colon < 0 ? bare : bare.slice(0, colon);
-    const allowed = name === 'docker' || name === 'grafana/alloy' || name.startsWith('ghcr.io/jonbeckman/');
+    const allowed = name === 'docker' || name === 'grafana/alloy' || name === 'koush/scrypted' || name.startsWith('ghcr.io/jonbeckman/');
     if (!allowed) fail(`${id}: image is not an allowed base or this store's image: ${name}`);
   });
 }

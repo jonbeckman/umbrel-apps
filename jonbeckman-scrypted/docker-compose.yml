@@ -1,0 +1,47 @@
+services:
+  # umbrelOS 2 does not start this container. umbreld reads APP_HOST, APP_PORT,
+  # and PROXY_AUTH_ADD and proxies from the host. 127.0.0.1 is the host itself,
+  # which is where a network_mode: host process listens. The tile port is 3503
+  # (umbrel-app.yml). It is not 11081: umbreld also binds 127.0.0.1 on the tile
+  # port, and Scrypted binds that address for its own HTTP port.
+  # Home Assistant (getumbrel/umbrel-apps home-assistant) is the host-network
+  # shape without this block, so it has no Umbrel login. PROXY_AUTH_ADD keeps
+  # the login on.
+  app_proxy:
+    environment:
+      APP_HOST: 127.0.0.1
+      APP_PORT: "11081"
+      PROXY_AUTH_ADD: "true"
+
+  server:
+    image: koush/scrypted:v0.148.0-noble-full@sha256:24f34decf3a15a92e4b9d31e91c0bf220e2a81638ae3c5150cb7693de471ac8f
+    restart: on-failure
+    network_mode: host
+    mem_limit: 4g
+    cpu_shares: 768
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    entrypoint: ["/bin/sh", "/import-volume.sh"]
+    environment:
+      # Confirmed in koush/scrypted server/src/server-settings.ts.
+      # 11080 is denny-scrypted's app_proxy port and stays free for that app.
+      SCRYPTED_INSECURE_PORT: "11081"
+      SCRYPTED_SECURE_PORT: "11443"
+    volumes:
+      - ${APP_DATA_DIR}/data/scrypted:/server/volume
+      - ${APP_DATA_DIR}/import-volume.sh:/import-volume.sh:ro
+    # Host networking has no published port for Umbrel to probe. curl is
+    # installed in this image. 302 from / is a healthy response; -f fails
+    # only on HTTP 400 and above, or when nothing is listening.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:11081/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

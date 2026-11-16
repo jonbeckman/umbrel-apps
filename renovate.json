@@ -7,7 +7,7 @@
   "commitMessagePrefix": "chore(deps):",
   "packageRules": [
     {
-      "description": "Base images need a reviewed merge. Never auto-merge them.",
+      "description": "Base images need a reviewed merge. Never auto-merge them. koush/scrypted in jonbeckman-scrypted/docker-compose.yml is one of these.",
       "matchDatasources": ["docker"],
       "automerge": false,
       "addLabels": ["base-image"]
