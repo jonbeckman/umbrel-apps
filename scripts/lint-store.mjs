@@ -100,7 +100,7 @@ for (const id of apps()) {
     const slash = bare.lastIndexOf('/');
     const colon = bare.indexOf(':', slash + 1);
     const name = colon < 0 ? bare : bare.slice(0, colon);
-    const allowed = name === 'docker' || name === 'grafana/alloy' || name === 'koush/scrypted' || name.startsWith('ghcr.io/jonbeckman/');
+    const allowed = name === 'docker' || name === 'grafana/alloy' || name === 'koush/scrypted' || name === 'ghcr.io/mkbula/qbitwebui' || name.startsWith('ghcr.io/jonbeckman/');
     if (!allowed) fail(`${id}: image is not an allowed base or this store's image: ${name}`);
   });
 }
