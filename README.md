@@ -24,6 +24,7 @@ Open that store from the same menu and install an app the same way as an officia
 | Grafana Alloy | `jonbeckman-grafana-alloy` | 0.1.4 | 3501 | Host metrics, container metrics, container logs, runner `/metrics`, and an internal OTLP receiver, shipped to Grafana Cloud. |
 | Cursor Worker | `jonbeckman-cursor-worker` | 0.1.1 | 3502 | Cursor cloud agents on this Umbrel. A My Machines worker named `umbrel`. |
 | Scrypted | `jonbeckman-scrypted` | 0.1.2 | 3503 | Home video and HomeKit. Host network so `_hap._tcp` reaches the LAN. HTTP is 11081, HTTPS is 11443. |
+| qbitwebui | `jonbeckman-qbitwebui` | 0.1.0 | 3504 | Web UI for the official qBittorrent app. Talks to `qbittorrent_server_1:8080`. Downloads are the `umbrel-downloads` slot, read-only. |
 
 GitHub Runner, Grafana Alloy, and Cursor Worker keep their pages on the Umbrel Docker network. Those pages are behind the Umbrel login (`PROXY_AUTH_ADD`). Scrypted uses the host network, so its process listens on the host; the tile on 3503 is still behind the Umbrel login.
 
@@ -148,6 +149,16 @@ The image config is `ENTRYPOINT ["/init"]` and `CMD ["/bin/sh", "-c", "ulimit -c
 
 Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both apps, delete the empty database this app created on first start, copy Denny's volume to `/Home/scrypted-import-from-denny/scrypted` (Umbrel rejects a custom mount under `/Apps`), add a read-only custom folder on service `server` at `/import` whose folder is that Home path, then start this app. The copy runs only when this volume has no `scrypted.db/CURRENT` and `/import` has one. The source is not modified. Scrypted's migration doc treats a `volume` directory copy as the move from an older install, including v0.122.0; set **Scrypted Server Address** to this Umbrel's LAN address afterward.
 
+### qbitwebui
+
+`ghcr.io/mkbula/qbitwebui:2.45.0`, digest-pinned. That digest is the one `latest` and the tag `2.45.0` both resolved to (`sha256:16902a917228443595d5faf5953d38e8a635d57b6054dbd7dbd86d49d4d6c782`). The GitHub release tag is `v2.45.0`. The process listens on 3000 and logs `Server running on port 3000`. The Umbrel tile is 3504, behind the Umbrel login. Nothing is published on the host.
+
+It depends on the official `qbittorrent` app. Add an instance whose URL is `http://qbittorrent_server_1:8080`. That is the qBittorrent container on `umbrel_main_network`, WebUI port 8080. `extra_hosts` maps `host.docker.internal` to `host-gateway`, so `http://host.docker.internal:8094` reaches the qBittorrent tile on the host. qBittorrent's default WebUI login is `admin` / `adminadmin` unless it was changed. Its post-start hook whitelists `10.21.0.0/16`, so Skip authentication works for the container URL. qbitwebui has no default account. The first person to register is the admin. `defaultUsername` and `defaultPassword` are empty.
+
+`ENCRYPTION_KEY` is `${APP_SEED}`. umbreld sets that before compose: HMAC-SHA256 of `app-jonbeckman-qbitwebui-seed` with the Umbrel seed (`derive_entropy` in `legacy-compat/app-script`). It is 64 hex characters, which clears qbitwebui's 32-character minimum. The salt file is `/data/.salt` on `${APP_DATA_DIR}/data`.
+
+Downloads follow the official qBittorrent app. Compose mounts `${UMBREL_ROOT}/data/storage/downloads` at `/downloads` read-only and sets `DOWNLOADS_PATH=/downloads`. The manifest has `permissions: [STORAGE_DOWNLOADS]` and a `folderAccess` entry with id `umbrel-downloads` on service `web`. umbrelOS 2 rewrites `/data/storage/downloads` to `/home/Downloads` and treats that mount as the `umbrel-downloads` slot. When the slot's source is `/External/hudson/downloads`, that directory is the one mounted at `/downloads`. The slot is per app, so set this app's Downloads folder to the same path qBittorrent is using. Details are in `jonbeckman-qbitwebui/README.md`.
+
 ## Images
 
 | Image | Built here | Base |
@@ -159,6 +170,7 @@ Import steps are in `jonbeckman-scrypted/README.md`. Short version: stop both ap
 | `docker:29.9.1-dind` | no | Docker official |
 | `grafana/alloy:v1.21.0` | no | Grafana official |
 | `koush/scrypted:v0.148.0-noble-full` | no | Scrypted official |
+| `ghcr.io/mkbula/qbitwebui:2.45.0` | no | qbitwebui official |
 
 Built images are `linux/amd64` only. The NUC is x86_64, and the Nub archive pinned in the runner Dockerfile is `nub-linux-x64`.
 
@@ -172,7 +184,7 @@ Base image digests in the Dockerfiles and compose files are pinned now. Our imag
 
 Umbrel offers an app update only when `version` in that app's `umbrel-app.yml` changes on `master`. A weekly Umbrel routine, Sundays around 3 AM ET, installs the updates the Umbrel is showing. A merge that does not change `version` does not update an install that is already there.
 
-Renovate opens a pull request when a third-party image (`koush/scrypted`, `grafana/alloy`, `docker`) or a GitHub Action changes. It does not edit `version`. The App version workflow does, on Renovate branches only:
+Renovate opens a pull request when a third-party image (`koush/scrypted`, `grafana/alloy`, `docker`, `ghcr.io/mkbula/qbitwebui`) or a GitHub Action changes. It does not edit `version`. The App version workflow does, on Renovate branches only:
 
 - Compare the pull request with `master`. If a compose image ref changed, set `version` from the **master** version: one patch, or one minor (patch reset to 0) when an image's major or minor increased. A re-run sees that version already and does not bump again.
 - Set `releaseNotes` to the image change, and the version in the table above.
@@ -189,6 +201,8 @@ Images this repository builds are not Renovate's job. The Images workflow on `ma
 - Scrypted `server/src/server-settings.ts`: `SCRYPTED_INSECURE_PORT` (default 11080), `SCRYPTED_SECURE_PORT` (default 10443), `SCRYPTED_DEBUG_PORT` (default 10081). The database path is `/server/volume/scrypted.db` (`scrypted-server-main.ts`). The `v0.148.0-noble-full` amd64 image config is `ENTRYPOINT ["/init"]` and `CMD ["/bin/sh", "-c", "ulimit -c 0; exec npm --prefix /server exec scrypted-serve"]`. Compose clears that CMD when only `entrypoint` is set, which is why this app sets `command` too.
 - umbrelOS 2 install copies the app folder with `rsync --archive` into `app-data/<id>` (`packages/umbreld/source/modules/apps/apps.ts` `#install`). `APP_DATA_DIR` is that directory (`legacy-compat/app-script`). Updates then copy `hooks` (`copy_app_files` whitelist in the same script), which is why `import-volume.sh` is `hooks/import-volume.sh`.
 - Scrypted migration doc (`docs.scrypted.app/maintenance/migration.html`): copying the volume directory is the database move onto another install. Docker install docs: HomeKit uses host networking. Upstream compose: `SCRYPTED_DOCKER_AVAHI=true` on host networking requires stopping the host avahi daemon.
+- qbitwebui 2.45.0: `Dockerfile` sets `PORT=3000`, `DATABASE_PATH=/data/qbitwebui.db`, `SALT_PATH=/data/.salt`, and the log line is `Server running on port ${port}`. `src/server/utils/crypto.ts` requires `ENCRYPTION_KEY` of at least 32 characters. GHCR tag `2.45.0` and `latest` both resolve to `sha256:16902a917228443595d5faf5953d38e8a635d57b6054dbd7dbd86d49d4d6c782`.
+- Official `qbittorrent` in getumbrel/umbrel-apps: volume `${UMBREL_ROOT}/data/storage/downloads:/downloads`, `permissions: [STORAGE_DOWNLOADS]`, WebUI on container port 8080, tile port 8094, default login `admin` / `adminadmin`. umbrelOS 2 `patchComposeFile` rewrites `/data/storage/downloads` to `/home/Downloads`. `getFolderAccessSlots` turns a mount of `/Home/Downloads` into the `umbrel-downloads` slot, and a saved source such as `/External/hudson/downloads` replaces the bind. `APP_SEED` is `derive_entropy("app-<id>-seed")` in `legacy-compat/app-script`.
 - Nub 0.9.6 docs and the published `nub-linux-x64.tar.gz.sha256` (`77220dc6deb6ebbdb0a282c61b80a157e32016e088f3632d8fb4bf74a931e4ce`), confirmed by running the binary.
 - `nubjs/setup-nub` `v0.6.0` `action.yml`: an exact nub version already at `$RUNNER_TOOL_CACHE/nub/<version>/$RUNNER_ARCH/bin/nub` is reused.
 - tester-army e2e docs: replay files live under `.e2e/cache` or `E2E_CACHE_DIR`; browser binaries follow Playwright's `PLAYWRIGHT_BROWSERS_PATH`.
@@ -216,3 +230,5 @@ What that code does that matters here:
 CI lints the store and does not start umbrelOS. Still unchecked on the NUC: installing the store, Umbrel login in front of the setup pages, a privileged `dind` job, whether `prometheus.exporter.cadvisor` returns useful numbers without a privileged Alloy container, whether Alloy accepts the unconfigured config and the OTLP receivers at stability `generally-available`, the real tester-army e2e binary honoring an absolute `E2E_CACHE_DIR`, GHCR packages actually being public, Alloy staying under 192 MB resident and the setup container staying under 96 MB, and whether the Cursor worker connects with a personal API key and clones the private repositories. The worker image does build, and `agent worker --help` on that image matches the flags this app passes.
 
 Also unchecked on the NUC: installing Scrypted, the Umbrel login in front of port 3503, HomeKit `_hap._tcp` showing up on a Mac after the move, whether the HomeKit advertiser and the host `avahi-daemon` can both hold UDP 5353, opening a v0.122.0 `scrypted.db` in v0.148.0, and the custom-folder screen accepting `/Home/scrypted-import-from-denny/scrypted` as the `/import` source. `/Apps` is not a valid custom-mount source. The image digest was read from the registry; the container was not started here.
+
+Also unchecked on the NUC: installing qbitwebui, the Umbrel login in front of port 3504, `ENCRYPTION_KEY` actually receiving `APP_SEED` from umbreld, and the Downloads slot resolving to `/External/hudson/downloads` after that folder is selected on this app. The image digest was read from the registry. The container was not started here.

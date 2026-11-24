@@ -1,0 +1,74 @@
+manifestVersion: 1.1
+id: jonbeckman-qbitwebui
+name: qbitwebui
+icon: https://raw.githubusercontent.com/jonbeckman/umbrel-apps/master/jonbeckman-qbitwebui/icon.svg
+category: networking
+version: "0.1.0"
+tagline: A web UI for the qBittorrent app on this Umbrel
+description: >-
+  qbitwebui talks to qBittorrent's WebUI API. The image is
+  ghcr.io/mkbula/qbitwebui 2.45.0. The process listens on port 3000 and
+  logs "Server running on port 3000". The Umbrel tile is port 3504 and
+  stays behind the Umbrel login.
+
+
+  This app depends on the official qBittorrent app. In qbitwebui, add an
+  instance whose URL is the qBittorrent container on the Umbrel Docker
+  network, http://qbittorrent_server_1:8080 (container
+  qbittorrent_server_1, WebUI port 8080). http://host.docker.internal:8094
+  also reaches that app's tile on the host. qBittorrent's default WebUI
+  login is admin / adminadmin unless it was changed. qBittorrent on
+  umbrelOS whitelists the Docker network 10.21.0.0/16, so Skip
+  authentication can be used for the container URL.
+
+
+  qbitwebui has no default account. The first person to register is the
+  admin. The Umbrel default-username and default-password fields are
+  blank for that reason. They are not admin / adminadmin. Those two
+  values are the qBittorrent WebUI login, entered inside qbitwebui when
+  the instance is added.
+
+
+  ENCRYPTION_KEY is the per-app seed Umbrel derives (${APP_SEED}), not a
+  value typed at install. Credentials qbitwebui stores are encrypted with
+  it. The database and salt are ${APP_DATA_DIR}/data mounted at /data.
+
+
+  Downloads are mounted read-only at /downloads (DOWNLOADS_PATH). The
+  compose line is the same one the official qBittorrent app uses,
+  ${UMBREL_ROOT}/data/storage/downloads. On umbrelOS 2 that mount is the
+  umbrel-downloads storage slot. If that slot is pointed at
+  /External/hudson/downloads, that folder is what this app reads.
+releaseNotes: >-
+  First release. qbitwebui 2.45.0, digest-pinned. The tile is port 3504.
+  ENCRYPTION_KEY comes from the Umbrel per-app seed. Downloads are the
+  official qBittorrent app's umbrel-downloads slot, read-only at
+  /downloads. Add the instance as http://qbittorrent_server_1:8080.
+developer: mkbula
+website: https://mkbula.github.io/qbitwebui/
+dependencies:
+  - qbittorrent
+repo: https://github.com/mkbula/qbitwebui
+support: https://github.com/mkbula/qbitwebui/issues
+port: 3504
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+permissions:
+  - STORAGE_DOWNLOADS
+folderAccess:
+  - id: umbrel-downloads
+    name: Downloads
+    note: >-
+      The Umbrel Downloads folder, the same slot the official qBittorrent
+      app uses. Mounted read-only at /downloads. A remap such as
+      /External/hudson/downloads is the directory this app reads.
+    mounts:
+      - service: web
+        targetPath: /downloads
+        readOnly: true
+submitter: jonbeckman
+submission: https://github.com/jonbeckman/umbrel-apps
